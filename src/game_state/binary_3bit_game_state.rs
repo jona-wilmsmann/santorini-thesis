@@ -11,7 +11,7 @@ Bits 52-55: Player B position
 For each tile:
 - Bits 0-2: Height (0-4)
  */
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub(crate) struct Binary3BitGameState(u64);
 
 impl fmt::Display for Binary3BitGameState {
@@ -78,8 +78,25 @@ impl Binary3BitGameState {
         return (self.0 >> 52) & 0xF;
     }
 
+    fn get_position_heights(self) -> [u8; 16] {
+        let mut position_heights = [0; 16];
+
+        let mut data = self.0;
+        for i in 0..16 {
+            position_heights[i] = (data & 0x7) as u8;
+            data >>= 3;
+        }
+        return position_heights;
+    }
+
     pub fn new(value: u64) -> Binary3BitGameState {
         Binary3BitGameState(value)
+    }
+
+    pub fn has_player_a_won(self) -> bool {
+        let player_a_position = self.get_player_a_position() as usize;
+        let player_a_height = (self.0 >> (player_a_position * 3)) & 0x7;
+        return player_a_height == 3;
     }
 
     pub fn from_generic_game_state(generic_game_state: &GenericGameState) -> Self {
@@ -97,10 +114,11 @@ impl Binary3BitGameState {
     }
 
     pub fn to_generic_game_state(self) -> GenericGameState {
+        let position_heights = self.get_position_heights();
         let mut tile_heights = [0; 16];
         for i in 0..16 {
             let position = Self::TILE_ID_TO_POSITION[i];
-            tile_heights[i] = ((self.0 >> (position * 3)) & 0x7) as u8;
+            tile_heights[i] = position_heights[position];
         }
         // Convert position to tile
         let player_a_tile = Self::POSITION_TO_TILE_ID[self.get_player_a_position() as usize] as u8;
@@ -118,7 +136,8 @@ impl Binary3BitGameState {
         let max_movement_height = match player_a_height {
             0 => 1,
             1 => 2,
-            _ => 3,
+            2 => 3,
+            _ => return possible_next_states, // Player A has already won
         };
 
         for movement_position in Self::POSITION_TO_NEIGHBORS[player_a_position] {
@@ -167,5 +186,96 @@ impl Binary3BitGameState {
         flipped_state |= player_a_position << 52;
         flipped_state |= player_b_position << 48;
         return Binary3BitGameState(flipped_state);
+    }
+}
+
+
+impl Binary3BitGameState {
+    const DISTANCE_TO_STATIC_VALUATION: [f32; 4] = [5.0, 2.0, 1.0, 0.5];
+    const HEIGHT_TO_STATIC_VALUATION: [f32; 5] = [1.0, 1.5, 2.0, 3.0, -1.0];
+
+    const POSITION_TO_POSITION_TO_HEIGHT_TO_VALUATION: [[[f32; 5]; 16]; 16] =
+        Self::precompute_position_to_position_to_height_to_valuation();
+    const fn precompute_position_to_position_to_height_to_valuation() -> [[[f32; 5]; 16]; 16] {
+        let mut position_to_position_to_height_to_valuation = [[[0.0; 5]; 16]; 16];
+
+        let mut i = 0;
+        while i < 16 {
+            let row_i = i / 4;
+            let column_i = i % 4;
+            let position_i = Self::TILE_ID_TO_POSITION[i];
+            let mut j = 0;
+            while j < 16 {
+                let row_j = j / 4;
+                let column_j = j % 4;
+                let position_j = Self::TILE_ID_TO_POSITION[j];
+
+                let row_distance = if row_i > row_j { row_i - row_j } else { row_j - row_i };
+                let column_distance = if column_i > column_j { column_i - column_j } else { column_j - column_i };
+                let distance = if row_distance > column_distance { row_distance } else { column_distance };
+
+                let mut height = 0;
+                while height <= 4 {
+                    let height_valuation = Self::HEIGHT_TO_STATIC_VALUATION[height];
+                    let distance_valuation = Self::DISTANCE_TO_STATIC_VALUATION[distance];
+                    position_to_position_to_height_to_valuation[position_i][position_j][height] = height_valuation * distance_valuation;
+                    height += 1;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+
+        return position_to_position_to_height_to_valuation;
+    }
+
+    pub fn static_evaluation(self) -> f32 {
+        let player_a_position = self.get_player_a_position() as usize;
+        let player_b_position = self.get_player_b_position() as usize;
+        let position_heights = self.get_position_heights();
+        let mut valuation = 0.0;
+
+        for i in 0..16 {
+            valuation += Self::POSITION_TO_POSITION_TO_HEIGHT_TO_VALUATION[player_a_position][i][position_heights[i] as usize];
+            valuation -= Self::POSITION_TO_POSITION_TO_HEIGHT_TO_VALUATION[player_b_position][i][position_heights[i] as usize];
+        }
+        return valuation;
+    }
+}
+
+impl Binary3BitGameState {
+    pub fn symmetric_transpose(&self) -> Self {
+        let mut new_state;
+
+        // TODO Also handle axis symmetry and combination of both
+
+        // Rotation
+        let height_information = self.0 & 0xFFFFFFFFFFFF;
+        let player_a_position = self.get_player_a_position();
+        let player_b_position = self.get_player_b_position();
+
+        let rotations = player_a_position / 4;
+
+        // Clockwise rotation
+        match rotations {
+            1 => {
+                new_state = ((height_information & 0xFFF) << 36) | (height_information >> 12);
+                new_state |= (player_a_position - 4 * rotations) << 48;
+                new_state |= (player_b_position.wrapping_sub(4 * rotations) & 0xF) << 52;
+            },
+            2 => {
+                new_state = ((height_information & 0xFFFFFF) << 24) | (height_information >> 24);
+                new_state |= (player_a_position - 4 * rotations) << 48;
+                new_state |= (player_b_position.wrapping_sub(4 * rotations) & 0xF) << 52;
+            },
+            3 => {
+                new_state = ((height_information & 0xFFFFFFFFF) << 12) | (height_information >> 36);
+                new_state |= (player_a_position - 4 * rotations) << 48;
+                new_state |= (player_b_position.wrapping_sub(4 * rotations) & 0xF) << 52;
+            },
+            _ => {new_state = self.0;},
+        }
+
+        return Self::new(new_state);
     }
 }
