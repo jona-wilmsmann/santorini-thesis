@@ -7,6 +7,9 @@ use crate::game_state::utils::precompute_position_to_tile_id::precompute_positio
 Bits 0-47: 3 bits per tile, 16 tiles
 Bits 48-51: Player A position
 Bits 52-55: Player B position
+Bits 56-61: Unused
+Bit 62: Player B has won (because they have reached height 3)
+Bit 63: Player A has won (because they have reached height 3)
 
 For each tile:
 - Bits 0-2: Height (0-4)
@@ -94,9 +97,11 @@ impl Binary3BitGameState {
     }
 
     pub fn has_player_a_won(self) -> bool {
-        let player_a_position = self.get_player_a_position() as usize;
-        let player_a_height = (self.0 >> (player_a_position * 3)) & 0x7;
-        return player_a_height == 3;
+        return self.0 & (1 << 63) != 0;
+    }
+
+    pub fn has_player_b_won(self) -> bool {
+        return self.0 & (1 << 62) != 0;
     }
 
     pub fn from_generic_game_state(generic_game_state: &GenericGameState) -> Self {
@@ -110,6 +115,14 @@ impl Binary3BitGameState {
         let player_b_position = Self::TILE_ID_TO_POSITION[generic_game_state.player_b_tile as usize] as u64;
         binary_game_state |= player_a_position << 48;
         binary_game_state |= player_b_position << 52;
+
+        if generic_game_state.tile_heights[generic_game_state.player_a_tile as usize] == 3 {
+            binary_game_state |= 1 << 63;
+        }
+        if generic_game_state.tile_heights[generic_game_state.player_b_tile as usize] == 3 {
+            binary_game_state |= 1 << 62;
+        }
+
         return Self(binary_game_state);
     }
 
@@ -137,7 +150,7 @@ impl Binary3BitGameState {
             0 => 1,
             1 => 2,
             2 => 3,
-            _ => return possible_next_states, // Player A has already won
+            _ => panic!("Can't get children for a game state that is already won")
         };
 
         for movement_position in Self::POSITION_TO_NEIGHBORS[player_a_position] {
@@ -168,6 +181,9 @@ impl Binary3BitGameState {
                 new_state &= !(0xF << 48);
                 new_state |= (movement_position as u64) << 48;
                 new_state += 1 << (build_position * 3);
+                if movement_height == 3 {
+                    new_state |= 1 << 63;
+                }
 
                 possible_next_states.push(Self(new_state));
             }
@@ -185,6 +201,10 @@ impl Binary3BitGameState {
         flipped_state &= !(0xFF << 48);
         flipped_state |= player_a_position << 52;
         flipped_state |= player_b_position << 48;
+        // Flip the winning bits
+        if flipped_state & (3 << 62) != 0 {
+            flipped_state ^= 3 << 62;
+        }
         return Self(flipped_state);
     }
 }
@@ -230,6 +250,12 @@ impl Binary3BitGameState {
     }
 
     pub fn static_evaluation(self) -> f32 {
+        if self.has_player_a_won() {
+            return f32::MAX;
+        } else if self.has_player_b_won() {
+            return f32::MIN;
+        }
+
         let player_a_position = self.get_player_a_position() as usize;
         let player_b_position = self.get_player_b_position() as usize;
         let position_heights = self.get_position_heights();
