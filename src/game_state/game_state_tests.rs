@@ -9,8 +9,8 @@ fn find_discrepancies(tries: usize) {
         let random_state = generate_random_state();
         let binary_3b_state = Binary3BitGameState::from_generic_game_state(&random_state);
         let binary_4b_state = Binary4BitGameState::from_generic_game_state(&random_state);
-        let mut next_states_3b = binary_3b_state.get_possible_next_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericGameState>>();
-        let mut next_states_4b = binary_4b_state.get_possible_next_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericGameState>>();
+        let mut next_states_3b = binary_3b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericGameState>>();
+        let mut next_states_4b = binary_4b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericGameState>>();
         next_states_3b.sort();
         next_states_4b.sort();
 

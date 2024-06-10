@@ -126,7 +126,7 @@ impl Binary3BitGameState {
         return GenericGameState::new(player_a_tile, player_b_tile, tile_heights).expect("Invalid game state");
     }
 
-    pub fn get_possible_next_states(self) -> Vec<Self> {
+    pub fn get_children_states(self) -> Vec<Self> {
         let mut possible_next_states = Vec::new();
 
         let player_a_position = self.get_player_a_position() as usize;

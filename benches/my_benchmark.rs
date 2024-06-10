@@ -12,7 +12,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("generate 1,000,000 next states", |b| b.iter(|| {
         for state in &random_states {
-            black_box(state.get_possible_next_states());
+            black_box(state.get_children_states());
         }
     }));
 
