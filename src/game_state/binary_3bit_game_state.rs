@@ -44,13 +44,13 @@ impl Binary3BitGameState {
 
                 let mut neighbor_row = row - 1;
                 while neighbor_row <= row + 1 {
-                    if neighbor_row < 0 || neighbor_row >= 4 || neighbor_row == row {
+                    if neighbor_row < 0 || neighbor_row >= 4 {
                         neighbor_row += 1;
                         continue;
                     }
                     let mut neighbor_column = column - 1;
                     while neighbor_column <= column + 1 {
-                        if neighbor_column < 0 || neighbor_column >= 4 || neighbor_column == column {
+                        if neighbor_column < 0 || neighbor_column >= 4 || (neighbor_row == row && neighbor_column == column) {
                             neighbor_column += 1;
                             continue;
                         }
