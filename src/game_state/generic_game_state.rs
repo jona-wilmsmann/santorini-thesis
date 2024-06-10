@@ -3,7 +3,7 @@ use std::fmt::Formatter;
 use anyhow::{ensure, Result};
 
 #[derive(Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) struct GenericGameState {
+pub struct GenericGameState {
     pub player_a_tile: u8,
     pub player_b_tile: u8,
     pub tile_heights: [u8; 16],

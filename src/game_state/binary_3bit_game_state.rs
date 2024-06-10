@@ -12,7 +12,7 @@ For each tile:
 - Bits 0-2: Height (0-4)
  */
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]
-pub(crate) struct Binary3BitGameState(u64);
+pub struct Binary3BitGameState(u64);
 
 impl fmt::Display for Binary3BitGameState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

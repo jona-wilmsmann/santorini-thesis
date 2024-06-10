@@ -14,7 +14,7 @@ For each tile:
 - This is acceptable because the opponent being on a tile with height 3 means that the opponent already won
  */
 #[derive(Copy, Clone)]
-pub(crate) struct Binary4BitGameState(u64);
+pub struct Binary4BitGameState(u64);
 
 impl fmt::Display for Binary4BitGameState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
