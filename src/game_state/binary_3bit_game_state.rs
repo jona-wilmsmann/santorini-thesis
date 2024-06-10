@@ -92,8 +92,8 @@ impl Binary3BitGameState {
         return position_heights;
     }
 
-    pub fn new(value: u64) -> Self {
-        Self(value)
+    pub fn raw_value(self) -> u64 {
+        self.0
     }
 
     pub fn has_player_a_won(self) -> bool {
@@ -316,6 +316,6 @@ impl Binary3BitGameState {
             _ => {new_state = self.0;},
         }
 
-        return Self::new(new_state);
+        return Self(new_state);
     }
 }

@@ -7,25 +7,27 @@ pub fn readable_minmax_value(value: f32) -> String {
     // If the value is close to MAX or MIN
     return if value > 1_000_000.0 {
         let difference = f32::MAX.to_bits() - value.to_bits();
-        format!("Winning in {}", difference)
+        format!("#+{}", difference)
     } else if value < -1_000_000.0 {
         let difference = f32::MIN.to_bits() - value.to_bits();
-        format!("Losing in {}", difference)
+        format!("#-{}", difference)
     } else {
         value.to_string()
     }
 }
 
 // Allows for flexibly adding caching if needed
-fn get_static_evaluation(game_state: &GameState, cache: &mut MinimaxCache) -> f32 {
+fn get_static_evaluation(game_state: &GameState, _cache: &mut MinimaxCache) -> f32 {
     return game_state.static_evaluation();
 
-    if let Some(cached_value) = cache.static_valuations.get(game_state) {
+    /*
+    if let Some(cached_value) = _cache.static_valuations.get(game_state) {
         return *cached_value;
     }
     let static_evaluation = game_state.static_evaluation();
-    cache.static_valuations.insert(game_state.clone(), static_evaluation);
+    _cache.static_valuations.insert(game_state.clone(), static_evaluation);
     return static_evaluation;
+     */
 }
 
 fn sort_children_states(children_states: &mut Vec<GameState>, depth: usize) {
@@ -82,7 +84,7 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
     }
     cache.pruned_states += children_states.len() - evaluated_children;
 
-    return max_evaluation
+    return move_f32_closer_to_zero(max_evaluation);
 }
 
 

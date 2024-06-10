@@ -3,12 +3,13 @@
 
 mod game_state;
 mod minimax;
+mod measurements;
 
 use std::time::Instant;
 use num_format::{Locale, ToFormattedString};
 use crate::game_state::GameState;
-use crate::game_state::generic_game_state::GenericGameState;
-use crate::minimax::{readable_minmax_value, minimax, minimax_with_moves};
+use crate::measurements::create_csv_report::create_csv_report;
+use crate::minimax::{readable_minmax_value, minimax_with_moves};
 use crate::minimax::minimax_cache::MinimaxCache;
 
 fn measure_minimax_and_log_moves(game_state: &GameState, depth: usize) {
@@ -30,10 +31,7 @@ fn measure_minimax_and_log_moves(game_state: &GameState, depth: usize) {
     println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
 }
 
-fn main() {
-    //let generic_state = GenericGameState::new(1, 15, [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]).unwrap();
-    let generic_state = GenericGameState::new(5, 10, [2, 2, 1, 2, 2, 2, 2, 1, 1, 0, 1, 4, 2, 0, 0, 0]).unwrap();
-    let game_state = GameState::from_generic_game_state(&generic_state);
-
-    measure_minimax_and_log_moves(&game_state, 5);
+#[tokio::main]
+async fn main() {
+    create_csv_report(100, 20, 3..8).await.unwrap();
 }
