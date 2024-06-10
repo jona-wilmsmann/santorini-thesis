@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use santorini_minimax::game_state::GameState;
-use santorini_minimax::game_state::utils::generate_random_state::generate_random_state;
+use santorini_minimax::game_state::utils::random_state_generation::generate_random_state;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let random_states: [GameState; 1000000] = [GameState::from_generic_game_state(&generate_random_state()); 1000000];

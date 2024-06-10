@@ -1,7 +1,7 @@
 use crate::game_state::binary_3bit_game_state::Binary3BitGameState;
 use crate::game_state::binary_4bit_game_state::Binary4BitGameState;
 use crate::game_state::generic_game_state::GenericGameState;
-use crate::game_state::utils::generate_random_state::generate_random_state;
+use crate::game_state::utils::random_state_generation::generate_random_state;
 
 
 fn find_discrepancies(tries: usize) {
