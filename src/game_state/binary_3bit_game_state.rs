@@ -44,13 +44,13 @@ impl Binary3BitGameState {
 
                 let mut neighbor_row = row - 1;
                 while neighbor_row <= row + 1 {
-                    if neighbor_row < 0 || neighbor_row >= 4 {
+                    if neighbor_row < 0 || neighbor_row >= 4 || neighbor_row == row {
                         neighbor_row += 1;
                         continue;
                     }
                     let mut neighbor_column = column - 1;
                     while neighbor_column <= column + 1 {
-                        if neighbor_column < 0 || neighbor_column >= 4 || neighbor_row == row && neighbor_column == column {
+                        if neighbor_column < 0 || neighbor_column >= 4 || neighbor_column == column {
                             neighbor_column += 1;
                             continue;
                         }
@@ -89,8 +89,8 @@ impl Binary3BitGameState {
         return position_heights;
     }
 
-    pub fn new(value: u64) -> Binary3BitGameState {
-        Binary3BitGameState(value)
+    pub fn new(value: u64) -> Self {
+        Self(value)
     }
 
     pub fn has_player_a_won(self) -> bool {
@@ -126,7 +126,7 @@ impl Binary3BitGameState {
         return GenericGameState::new(player_a_tile, player_b_tile, tile_heights).expect("Invalid game state");
     }
 
-    pub fn get_possible_next_states(self) -> Vec<Binary3BitGameState> {
+    pub fn get_possible_next_states(self) -> Vec<Self> {
         let mut possible_next_states = Vec::new();
 
         let player_a_position = self.get_player_a_position() as usize;
@@ -169,14 +169,14 @@ impl Binary3BitGameState {
                 new_state |= (movement_position as u64) << 48;
                 new_state += 1 << (build_position * 3);
 
-                possible_next_states.push(Binary3BitGameState(new_state));
+                possible_next_states.push(Self(new_state));
             }
         }
 
         return possible_next_states;
     }
 
-    pub fn get_flipped_state(self) -> Binary3BitGameState {
+    pub fn get_flipped_state(self) -> Self {
         let mut flipped_state = self.0;
         let player_a_position = self.get_player_a_position();
         let player_b_position = self.get_player_b_position();
@@ -185,7 +185,7 @@ impl Binary3BitGameState {
         flipped_state &= !(0xFF << 48);
         flipped_state |= player_a_position << 52;
         flipped_state |= player_b_position << 48;
-        return Binary3BitGameState(flipped_state);
+        return Self(flipped_state);
     }
 }
 
@@ -234,6 +234,20 @@ impl Binary3BitGameState {
         let player_b_position = self.get_player_b_position() as usize;
         let position_heights = self.get_position_heights();
         let mut valuation = 0.0;
+
+        /*
+        if position_heights[player_a_position] >= 2 {
+            for neighbor in Self::POSITION_TO_NEIGHBORS[player_a_position] {
+                if neighbor == Self::NO_NEIGHBOR {
+                    break;
+                }
+
+                if position_heights[neighbor] == 3 {
+                    return f32::INFINITY;
+                }
+            }
+        }
+         */
 
         for i in 0..16 {
             valuation += Self::POSITION_TO_POSITION_TO_HEIGHT_TO_VALUATION[player_a_position][i][position_heights[i] as usize];

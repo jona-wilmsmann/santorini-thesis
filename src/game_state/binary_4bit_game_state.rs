@@ -42,13 +42,13 @@ impl Binary4BitGameState {
                 let position = Self::TILE_ID_TO_POSITION[tile_id as usize];
                 let mut neighbor_row = row - 1;
                 while neighbor_row <= row + 1 {
-                    if neighbor_row < 0 || neighbor_row >= 4 {
+                    if neighbor_row < 0 || neighbor_row >= 4 || neighbor_row == row {
                         neighbor_row += 1;
                         continue;
                     }
                     let mut neighbor_column = column - 1;
                     while neighbor_column <= column + 1 {
-                        if neighbor_column < 0 || neighbor_column >= 4 || neighbor_row == row && neighbor_column == column {
+                        if neighbor_column < 0 || neighbor_column >= 4 || neighbor_column == column {
                             neighbor_column += 1;
                             continue;
                         }
@@ -69,8 +69,8 @@ impl Binary4BitGameState {
     const PLAYER_A_MASK: u64 = 0x8888888888888888;
     const PLAYER_B_MASK: u64 = 0x4444444444444444;
 
-    pub fn new(value: u64) -> Binary4BitGameState {
-        Binary4BitGameState(value)
+    pub fn new(value: u64) -> Self {
+        Self(value)
     }
 
 
@@ -106,7 +106,7 @@ impl Binary4BitGameState {
         return GenericGameState::new(player_a_tile, player_b_tile, tile_heights).expect("Invalid game state");
     }
 
-    pub fn get_possible_next_states(self) -> Vec<Binary4BitGameState> {
+    pub fn get_possible_next_states(self) -> Vec<Self> {
         let mut possible_next_states = Vec::new();
 
         let player_a_bit = self.0 & Self::PLAYER_A_MASK;
@@ -142,19 +142,14 @@ impl Binary4BitGameState {
             let build_sub_result = state_with_padded_highest_bit.wrapping_sub(build_height_threshold_mask);
             let mut valid_build_neighbors_mask = !build_sub_result & build_neighbor_mask & CARRY_MASK;
 
-            //println!("State with padded highest: {:016X}", state_with_padded_highest_bit);
-            //println!("Build sub result: {:016X}", build_sub_result);
-            //println!("Valid build neighbor mask: {:016X}", valid_build_neighbors_mask);
             let mut seen_build_positions = 0;
             loop {
                 let new_build_positions = valid_build_neighbors_mask.trailing_zeros() / 4;
-                // log mask and new_build_positions as hex
                 if new_build_positions == 16 {
                     break;
                 }
 
                 let build_position = (new_build_positions + seen_build_positions) as usize;
-                //println!("Detected a possible next state: move {} / build {}", movement_position, build_position);
 
                 let mut new_state = ((self.0 ^ player_a_bit) | (0x8 << (movement_position * 4))) + (1 << (build_position * 4));
                 // Special case for incrementing height from 3 to 4
@@ -163,8 +158,7 @@ impl Binary4BitGameState {
                 }
 
 
-                possible_next_states.push(Binary4BitGameState(new_state));
-                //println!("Detected a possible next state: move {} / build {}", new_movement_positions + seen_movement_positions, new_build_positions + seen_build_positions);
+                possible_next_states.push(Self(new_state));
 
                 if new_build_positions >= 15 {
                     break;
@@ -183,7 +177,7 @@ impl Binary4BitGameState {
         return possible_next_states;
     }
 
-    pub fn get_flipped_state(self) -> Binary4BitGameState {
+    pub fn get_flipped_state(self) -> Self {
         let player_a_bit = self.0 & Self::PLAYER_A_MASK;
 
         const PLAYER_B_HEIGHT_MASK: u64 = 0x3333333333333333;
@@ -199,6 +193,6 @@ impl Binary4BitGameState {
         }
 
         let flipped_state = self.0 - (player_a_bit >> 1) + player_b_bit;
-        return Binary4BitGameState(flipped_state);
+        return Self(flipped_state);
     }
 }
