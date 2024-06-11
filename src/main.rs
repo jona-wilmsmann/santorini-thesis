@@ -33,5 +33,5 @@ fn measure_minimax_and_log_moves(game_state: &GameState, depth: usize) {
 
 #[tokio::main]
 async fn main() {
-    create_csv_report(100, 20, 3..8).await.unwrap();
+    create_csv_report(100, 15..=50, 1..=8).await.unwrap();
 }

@@ -38,6 +38,9 @@ fn sort_children_states(children_states: &mut Vec<GameState>, depth: usize) {
 
 // This function is used to prioritize moves that reach a good game state faster, or delay a bad game state
 fn move_f32_closer_to_zero(value: f32) -> f32 {
+    if value == 0.0 {
+        return value;
+    }
     let mut int_value = value.to_bits();
     int_value -= 1;
     return f32::from_bits(int_value);
