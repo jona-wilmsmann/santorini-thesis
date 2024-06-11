@@ -87,7 +87,7 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
     }
     cache.pruned_states += children_states.len() - evaluated_children;
 
-    return move_f32_closer_to_zero(max_evaluation);
+    return max_evaluation;
 }
 
 
