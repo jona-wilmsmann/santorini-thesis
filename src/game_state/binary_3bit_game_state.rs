@@ -244,7 +244,6 @@ impl Binary3BitGameState {
 
                 let mut start_height = 0;
                 while start_height <= 2 {
-
                     let mut neighbor_height = 0;
                     while neighbor_height <= 4 {
                         let height_valuation = Self::HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION[start_height][neighbor_height];
@@ -284,38 +283,133 @@ impl Binary3BitGameState {
     }
 }
 
+/*
+0 => 0 deg ccw
+1 => 90 deg ccw
+2 => 180 deg ccw
+3 => 270 deg ccw
+4 => 0 deg ccw + diagonal mirror
+5 => 90 deg ccw + diagonal mirror
+6 => 180 deg ccw + diagonal mirror
+7 => 270 deg ccw + diagonal mirror
+ */
+type SymmetricMirrorType = u8;
+
 impl Binary3BitGameState {
-    pub fn symmetric_transpose(&self) -> Self {
-        let mut new_state;
+    const POS_TO_DIAGONALLY_MIRRORED_POS: [u64; 16] = Self::precompute_pos_to_diagonally_mirrored_pos();
+    const fn precompute_pos_to_diagonally_mirrored_pos() -> [u64; 16] {
+        let mut pos_to_diagonally_mirrored_pos = [0; 16];
+        let mut tile_id = 0;
+        while tile_id < 16 {
+            let row = tile_id / 4;
+            let column = tile_id % 4;
+            let diagonally_mirrored_row = column;
+            let diagonally_mirrored_column = row;
+            let diagonally_mirrored_tile_id = diagonally_mirrored_row * 4 + diagonally_mirrored_column;
 
-        // TODO Also handle axis symmetry and combination of both
+            let pos = Self::TILE_ID_TO_POSITION[tile_id];
+            let diagonally_mirrored_pos = Self::TILE_ID_TO_POSITION[diagonally_mirrored_tile_id];
+            pos_to_diagonally_mirrored_pos[pos] = diagonally_mirrored_pos as u64;
 
-        // Rotation
+            tile_id += 1;
+        }
+        return pos_to_diagonally_mirrored_pos;
+    }
+
+    const fn get_rotated_tile_id(tile_id: usize, ccw_90_rotations: usize) -> usize {
+        let mut new_tile_id = tile_id;
+        const ROTATION_MAP: [usize; 16] = [3,7,11,15,2,6,10,14,1,5,9,13,0,4,8,12];
+        let mut i = 0;
+        while i < ccw_90_rotations {
+            new_tile_id = ROTATION_MAP[new_tile_id];
+            i += 1;
+        }
+
+        return new_tile_id
+    }
+
+    const PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE: [[SymmetricMirrorType; 16]; 16] =
+        Self::precompute_mirror_types();
+
+    const fn precompute_mirror_types() -> [[SymmetricMirrorType; 16]; 16] {
+        let mut player_a_pos_player_b_pos_to_mirror_type = [[0; 16]; 16];
+
+        let mut player_a_tile = 0;
+        while player_a_tile < 16 {
+            let player_a_pos = Self::TILE_ID_TO_POSITION[player_a_tile];
+            let mut player_b_tile = 0;
+            while player_b_tile < 16 {
+                let player_b_pos = Self::TILE_ID_TO_POSITION[player_b_tile];
+
+                let ccw_rotations = match player_a_tile {
+                    0|1|4|5 => 0,
+                    2|3|6|7 => 3,
+                    10|11|14|15 => 2,
+                    8|9|12|13 => 1,
+                    _ => panic!("Invalid tile id")
+                };
+
+                let player_a_tile_rotated = Self::get_rotated_tile_id(player_a_tile, ccw_rotations);
+                let diagonal_mirroring = if player_a_tile_rotated == 4 {
+                    true
+                } else {
+                    let player_b_tile_rotated = Self::get_rotated_tile_id(player_b_tile, ccw_rotations);
+                    match player_b_tile_rotated {
+                        4|8|9|12|13|14 => true,
+                        _ => false
+                    }
+                };
+
+
+                let mirror_type: SymmetricMirrorType = ccw_rotations as u8 + if diagonal_mirroring { 4 } else { 0 };
+                player_a_pos_player_b_pos_to_mirror_type[player_a_pos][player_b_pos] = mirror_type;
+
+                player_b_tile += 1;
+            }
+            player_a_tile += 1;
+        }
+
+        return player_a_pos_player_b_pos_to_mirror_type;
+    }
+
+    pub fn get_symmetric_simplified_state(&self) -> Self {
         let height_information = self.0 & 0xFFFFFFFFFFFF;
+        let status_information = self.0 & (0xFF << 56);
         let player_a_position = self.get_player_a_position();
         let player_b_position = self.get_player_b_position();
 
-        let rotations = player_a_position / 4;
+        let transposition_type = Self::PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE[player_a_position as usize][player_b_position as usize];
 
-        // Clockwise rotation
-        match rotations {
-            1 => {
-                new_state = ((height_information & 0xFFF) << 36) | (height_information >> 12);
-                new_state |= (player_a_position - 4 * rotations) << 48;
-                new_state |= (player_b_position.wrapping_sub(4 * rotations) & 0xF) << 52;
-            },
-            2 => {
-                new_state = ((height_information & 0xFFFFFF) << 24) | (height_information >> 24);
-                new_state |= (player_a_position - 4 * rotations) << 48;
-                new_state |= (player_b_position.wrapping_sub(4 * rotations) & 0xF) << 52;
-            },
-            3 => {
-                new_state = ((height_information & 0xFFFFFFFFF) << 12) | (height_information >> 36);
-                new_state |= (player_a_position - 4 * rotations) << 48;
-                new_state |= (player_b_position.wrapping_sub(4 * rotations) & 0xF) << 52;
-            },
-            _ => {new_state = self.0;},
+        let ccw_rotations = transposition_type as u64 % 4;
+        let diagonal_mirroring = transposition_type >= 4;
+
+        let mut new_height_information = match ccw_rotations {
+            0 => height_information,
+            1 => ((height_information & 0xFFFFFFFFF) << 12) | (height_information >> 36),
+            2 => ((height_information & 0xFFFFFF) << 24) | (height_information >> 24),
+            3 => ((height_information & 0xFFF) << 36) | (height_information >> 12),
+            _ => panic!("Invalid rotation")
+        };
+
+        if diagonal_mirroring {
+            let mut mirrored_height_information = 0;
+            for original_pos in 0..16 {
+                let mirrored_pos = Self::POS_TO_DIAGONALLY_MIRRORED_POS[original_pos];
+
+                let original_height = (new_height_information >> (original_pos * 3)) & 0x7;
+                mirrored_height_information |= original_height << (mirrored_pos * 3);
+            }
+            new_height_information = mirrored_height_information;
         }
+
+        let mut new_player_a_position = (player_a_position + ccw_rotations * 4) % 16;
+        let mut new_player_b_position = (player_b_position + ccw_rotations * 4) % 16;
+        if diagonal_mirroring {
+            new_player_a_position = Self::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_a_position as usize];
+            new_player_b_position = Self::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_b_position as usize];
+        }
+
+        let new_state = new_height_information | (new_player_a_position << 48) | (new_player_b_position << 52) | (status_information << 56);
 
         return Self(new_state);
     }
