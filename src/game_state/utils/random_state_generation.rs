@@ -39,7 +39,7 @@ pub fn generate_random_state_with_blocks(mut block_amount: usize) -> GenericGame
     return GenericGameState::new(player_a_tile, player_b_tile, tile_heights).expect("Randomly generated invalid game state");
 }
 
-pub fn _generate_random_state() -> GenericGameState {
+pub fn generate_random_state() -> GenericGameState {
     let mut tile_heights = [0; 16];
     let player_a_tile;
     let mut player_b_tile ;

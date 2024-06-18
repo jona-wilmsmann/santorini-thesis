@@ -31,7 +31,7 @@ fn get_static_evaluation(game_state: &GameState, _cache: &mut MinimaxCache) -> f
 }
 
 fn sort_children_states(children_states: &mut Vec<GameState>, depth: usize) {
-    if depth > 4 {
+    if depth > 2 {
         children_states.sort_by(|a, b| b.static_evaluation().partial_cmp(&a.static_evaluation()).unwrap());
     }
 }

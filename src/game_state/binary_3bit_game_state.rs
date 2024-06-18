@@ -92,6 +92,10 @@ impl Binary3BitGameState {
         return position_heights;
     }
 
+    pub fn new(binary_game_state: u64) -> Self {
+        return Self(binary_game_state);
+    }
+
     pub fn raw_value(self) -> u64 {
         self.0
     }
@@ -212,12 +216,16 @@ impl Binary3BitGameState {
 
 impl Binary3BitGameState {
     const DISTANCE_TO_STATIC_VALUATION: [f32; 4] = [5.0, 2.0, 1.0, 0.5];
-    const HEIGHT_TO_STATIC_VALUATION: [f32; 5] = [1.0, 1.5, 2.0, 3.0, -1.0];
+    const HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION: [[f32; 5]; 3] = [
+        [1.0, 1.5, -1.0, 0.0, -1.0], //Start height 0
+        [1.0, 1.5, 2.0, 0.5, -1.0], //Start height 1
+        [1.0, 1.5, 2.0, 3.0, -1.0], //Start height 2
+    ];
 
-    const POSITION_TO_POSITION_TO_HEIGHT_TO_VALUATION: [[[f32; 5]; 16]; 16] =
-        Self::precompute_position_to_position_to_height_to_valuation();
-    const fn precompute_position_to_position_to_height_to_valuation() -> [[[f32; 5]; 16]; 16] {
-        let mut position_to_position_to_height_to_valuation = [[[0.0; 5]; 16]; 16];
+    const POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION: [[[[f32; 5]; 3]; 16]; 16] =
+        Self::precompute_position_to_position_to_height_to_height_to_valuation();
+    const fn precompute_position_to_position_to_height_to_height_to_valuation() -> [[[[f32; 5]; 3]; 16]; 16] {
+        let mut position_to_position_to_height_to_height_to_valuation = [[[[0.0; 5]; 3]; 16]; 16];
 
         let mut i = 0;
         while i < 16 {
@@ -234,19 +242,25 @@ impl Binary3BitGameState {
                 let column_distance = if column_i > column_j { column_i - column_j } else { column_j - column_i };
                 let distance = if row_distance > column_distance { row_distance } else { column_distance };
 
-                let mut height = 0;
-                while height <= 4 {
-                    let height_valuation = Self::HEIGHT_TO_STATIC_VALUATION[height];
-                    let distance_valuation = Self::DISTANCE_TO_STATIC_VALUATION[distance];
-                    position_to_position_to_height_to_valuation[position_i][position_j][height] = height_valuation * distance_valuation;
-                    height += 1;
+                let mut start_height = 0;
+                while start_height <= 2 {
+
+                    let mut neighbor_height = 0;
+                    while neighbor_height <= 4 {
+                        let height_valuation = Self::HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION[start_height][neighbor_height];
+                        let distance_valuation = Self::DISTANCE_TO_STATIC_VALUATION[distance];
+                        position_to_position_to_height_to_height_to_valuation[position_i][position_j][start_height][neighbor_height] = height_valuation * distance_valuation;
+                        neighbor_height += 1;
+                    }
+
+                    start_height += 1;
                 }
                 j += 1;
             }
             i += 1;
         }
 
-        return position_to_position_to_height_to_valuation;
+        return position_to_position_to_height_to_height_to_valuation;
     }
 
     pub fn static_evaluation(self) -> f32 {
@@ -261,24 +275,11 @@ impl Binary3BitGameState {
         let position_heights = self.get_position_heights();
         let mut valuation = 0.0;
 
-        /*
-        if position_heights[player_a_position] >= 2 {
-            for neighbor in Self::POSITION_TO_NEIGHBORS[player_a_position] {
-                if neighbor == Self::NO_NEIGHBOR {
-                    break;
-                }
-
-                if position_heights[neighbor] == 3 {
-                    return f32::INFINITY;
-                }
-            }
-        }
-         */
-
         for i in 0..16 {
-            valuation += Self::POSITION_TO_POSITION_TO_HEIGHT_TO_VALUATION[player_a_position][i][position_heights[i] as usize];
-            valuation -= Self::POSITION_TO_POSITION_TO_HEIGHT_TO_VALUATION[player_b_position][i][position_heights[i] as usize];
+            valuation += Self::POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[player_a_position][i][position_heights[player_a_position] as usize][position_heights[i] as usize];
+            valuation -= Self::POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[player_b_position][i][position_heights[player_b_position] as usize][position_heights[i] as usize];
         }
+
         return valuation;
     }
 }
