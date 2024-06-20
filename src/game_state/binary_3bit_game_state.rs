@@ -415,4 +415,168 @@ impl Binary3BitGameState {
 
         return Self(new_state);
     }
+
+
+}
+
+const INVALID_INDEX: usize = usize::MAX;
+#[derive(Copy, Clone)]
+struct SimplifiedPositionCombination {
+    player_a_tile_id: usize,
+    player_b_tile_ids: [usize; 15],
+}
+#[derive(Copy, Clone)]
+struct SimplifiedStateVariants {
+    player_a_position: usize,
+    player_b_options: usize,
+    player_b_positions: [usize; 15],
+    total_possible_states: u64
+}
+
+impl Binary3BitGameState {
+
+    const POSSIBLE_SIMPLIFIED_PLAYER_TILES: [SimplifiedPositionCombination; 3] = [
+        SimplifiedPositionCombination {
+            player_a_tile_id: 0,
+            player_b_tile_ids: [1,2,3,5,6,7,10,11,15, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX]
+        },
+        SimplifiedPositionCombination {
+            player_a_tile_id: 1,
+            player_b_tile_ids: [0,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+        },
+        SimplifiedPositionCombination {
+            player_a_tile_id: 5,
+            player_b_tile_ids: [0,1,2,3,6,7,10,11,15, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX]
+        }
+    ];
+
+    const POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS: [SimplifiedStateVariants; 3] = Self::precompute_possible_simplified_player_positions();
+
+    const fn precompute_possible_simplified_player_positions() -> [SimplifiedStateVariants; 3] {
+        let mut possible_simplified_player_positions = [SimplifiedStateVariants {
+            player_a_position: 0,
+            player_b_options: 0,
+            player_b_positions: [INVALID_INDEX; 15],
+            total_possible_states: 0
+        }; 3];
+
+        let mut combination_index = 0;
+        while combination_index < Self::POSSIBLE_SIMPLIFIED_PLAYER_TILES.len() {
+            let combination = Self::POSSIBLE_SIMPLIFIED_PLAYER_TILES[combination_index];
+
+            possible_simplified_player_positions[combination_index].player_a_position = Self::TILE_ID_TO_POSITION[combination.player_a_tile_id];
+
+            let mut player_b_index = 0;
+            while player_b_index < combination.player_b_tile_ids.len() {
+                let player_b_tile_id = combination.player_b_tile_ids[player_b_index];
+                if player_b_tile_id == INVALID_INDEX {
+                    break;
+                }
+                let player_b_position = Self::TILE_ID_TO_POSITION[player_b_tile_id];
+                possible_simplified_player_positions[combination_index].player_b_positions[player_b_index] = player_b_position;
+                possible_simplified_player_positions[combination_index].player_b_options += 1;
+
+                player_b_index += 1;
+            }
+
+            // 3^2 (height of player A and player B tiles) * 5^14 (height of other tiles)
+            let total_possible_states = possible_simplified_player_positions[combination_index].player_b_options as u64 * 3u64.pow(2) * 5u64.pow(14);
+            possible_simplified_player_positions[combination_index].total_possible_states = total_possible_states;
+
+            combination_index += 1;
+        }
+
+        return possible_simplified_player_positions;
+    }
+
+    pub fn is_simplified(&self) -> bool {
+        let player_a_position = self.get_player_a_position() as usize;
+        let player_b_position = self.get_player_b_position() as usize;
+
+        if self.has_player_a_won() || self.has_player_b_won() {
+            return false;
+        }
+
+        for combination in Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS.iter() {
+            if player_a_position == combination.player_a_position {
+                for i in 0..combination.player_b_options {
+                    if player_b_position == combination.player_b_positions[i] {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+        return false;
+    }
+
+    pub fn get_continuous_id(&self) -> u64 {
+        let player_a_position = self.get_player_a_position();
+        let player_b_position = self.get_player_b_position();
+
+        debug_assert!(self.is_simplified());
+
+
+        let matching_variant_index = Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS.iter().position(|&x| x.player_a_position == player_a_position as usize)
+            .expect("No variant matching player A position found, this can only happen for non simplified states");
+        let matching_variant = &Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS[matching_variant_index];
+
+        let mut variant_offset = 0;
+        for i in 0..matching_variant_index {
+            variant_offset += Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS[i].total_possible_states;
+        }
+
+        let player_b_position_index = matching_variant.player_b_positions.iter().position(|&x| x == player_b_position as usize)
+            .expect("Player B position not found, this can only happen for non simplified states");
+
+        let mut continuous_id = 0;
+
+        let mut raw_value = self.0;
+        for pos in 0..16 {
+            let height = raw_value & 0x7;
+            if pos == player_a_position || pos == player_b_position {
+                continuous_id = continuous_id * 3 + height;
+            } else {
+                continuous_id = continuous_id * 5 + height;
+            }
+            raw_value >>= 3;
+        }
+
+        continuous_id = continuous_id * matching_variant.player_b_options as u64 + player_b_position_index as u64;
+        continuous_id += variant_offset;
+
+        return continuous_id;
+    }
+
+    pub fn from_continuous_id(mut continuous_id: u64) -> Self {
+        let mut matching_variant_option = None;
+        for variant in Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS.iter() {
+            if continuous_id < variant.total_possible_states {
+                matching_variant_option = Some(variant);
+                break;
+            }
+            continuous_id -= variant.total_possible_states;
+        }
+        let matching_variant = matching_variant_option.
+            expect("No matching variant found, this means that the continuous id is too high");
+
+        let player_b_index = (continuous_id % matching_variant.player_b_options as u64) as usize;
+        continuous_id /= matching_variant.player_b_options as u64;
+        let player_a_position = matching_variant.player_a_position as u64;
+        let player_b_position = matching_variant.player_b_positions[player_b_index] as u64;
+
+        let mut raw_value = 0;
+        for i in (0..16).rev() {
+            let options = if i == player_a_position || i == player_b_position { 3 } else { 5 };
+            let height = continuous_id % options as u64;
+            continuous_id /= options as u64;
+            raw_value = raw_value << 3 | height;
+        }
+
+        raw_value |= player_a_position << 48;
+        raw_value |= player_b_position << 52;
+        // TODO Check player b won
+        return Self(raw_value);
+    }
+
 }
