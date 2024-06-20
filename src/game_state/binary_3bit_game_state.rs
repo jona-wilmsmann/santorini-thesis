@@ -489,6 +489,17 @@ impl Binary3BitGameState {
         return possible_simplified_player_positions;
     }
 
+    pub const CONTINUOUS_ID_COUNT: u64 = Self::precompute_continuous_id_count();
+    const fn precompute_continuous_id_count() -> u64 {
+        let mut continuous_id_count = 0;
+        let mut variant_index = 0;
+        while variant_index < Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS.len() {
+            continuous_id_count += Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS[variant_index].total_possible_states;
+            variant_index += 1;
+        }
+        return continuous_id_count;
+    }
+
     pub fn is_simplified(&self) -> bool {
         let player_a_position = self.get_player_a_position() as usize;
         let player_b_position = self.get_player_b_position() as usize;
