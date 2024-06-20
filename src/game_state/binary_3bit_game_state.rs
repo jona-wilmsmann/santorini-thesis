@@ -352,6 +352,8 @@ impl Binary3BitGameState {
                 let player_a_tile_rotated = Self::get_rotated_tile_id(player_a_tile, ccw_rotations);
                 let diagonal_mirroring = if player_a_tile_rotated == 4 {
                     true
+                } else if player_a_tile_rotated == 1 {
+                    false
                 } else {
                     let player_b_tile_rotated = Self::get_rotated_tile_id(player_b_tile, ccw_rotations);
                     match player_b_tile_rotated {
