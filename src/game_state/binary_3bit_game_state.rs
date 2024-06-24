@@ -411,7 +411,7 @@ impl Binary3BitGameState {
             new_player_b_position = Self::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_b_position as usize];
         }
 
-        let new_state = new_height_information | (new_player_a_position << 48) | (new_player_b_position << 52) | (status_information << 56);
+        let new_state = new_height_information | (new_player_a_position << 48) | (new_player_b_position << 52) | status_information;
 
         return Self(new_state);
     }
