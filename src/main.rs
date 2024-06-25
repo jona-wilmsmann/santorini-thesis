@@ -120,8 +120,8 @@ async fn main() {
     //create_csv_report(100, 15..=50, 1..=10).await.unwrap();
 
 
-    let generic_game_state = GenericGameState::new(0, 10, [0,0,0,4,0,0,0,4,0,0,0,4,4,4,4,4]).unwrap();
-    //let generic_game_state = GenericGameState::new(5, 9, [1,1,1,0,1,0,1,4,4,0,1,2,0,1,2,2]).unwrap();
+    //let generic_game_state = GenericGameState::new(0, 10, [0,0,0,4,0,0,0,4,0,0,0,4,4,4,4,4]).unwrap();
+    let generic_game_state = GenericGameState::new(5, 9, [1,1,1,0,0,0,1,4,4,0,1,1,0,1,2,4]).unwrap();
     let game_state = GameState::from_generic_game_state(&generic_game_state);
 
 
@@ -130,7 +130,7 @@ async fn main() {
 
     let start = Instant::now();
     let mut minimax_cache = MinimaxCache::new();
-    let value = minimax(&game_state, 11, f32::NEG_INFINITY, f32::INFINITY, &mut minimax_cache);
+    let value = minimax(&game_state, 12, f32::NEG_INFINITY, f32::INFINITY, &mut minimax_cache);
     //let value = increasing_depth_minimax(&game_state, 35, Duration::from_secs(600), &mut minimax_cache);
     let duration = start.elapsed();
 

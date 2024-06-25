@@ -1,7 +1,9 @@
 use std::array::from_fn;
+use std::collections::hash_map::Entry::{Occupied, Vacant};
 use crate::game_state::GameState;
 use fnv::FnvHashMap;
 
+#[derive(Copy, Clone, Debug)]
 pub struct Bounds {
     pub value: f32,
     pub alpha: f32,
@@ -11,7 +13,7 @@ pub struct Bounds {
 pub struct MinimaxCache {
     pub evaluated_states: usize,
     pub pruned_states: usize,
-    pub valuations: [FnvHashMap<GameState, Bounds>; 63],
+    pub valuation_bounds: [FnvHashMap<GameState, Bounds>; 63],
 }
 
 impl MinimaxCache {
@@ -19,7 +21,32 @@ impl MinimaxCache {
         return MinimaxCache {
             evaluated_states: 0,
             pruned_states: 0,
-            valuations: from_fn(|_| FnvHashMap::default()),
+            valuation_bounds: from_fn(|_| FnvHashMap::default()),
         };
+    }
+
+    pub fn insert_valuation_bounds(&mut self, depth: usize, game_state: GameState, bounds: Bounds) {
+        //self.valuation_bounds[depth].insert(game_state, bounds);
+
+        // TODO: Check if this makes sense and if there are any other possible cases to cover
+        let entry = self.valuation_bounds[depth].entry(game_state);
+        match entry {
+            Occupied(mut occupied_entry) => {
+                let current_bounds = occupied_entry.get_mut();
+                if bounds.value > current_bounds.value {
+                    *current_bounds = bounds;
+                } else if bounds.value == current_bounds.value {
+                    if bounds.alpha > current_bounds.alpha && bounds.beta <= current_bounds.beta {
+                        current_bounds.alpha = bounds.alpha;
+                    }
+                    if bounds.beta < current_bounds.beta && bounds.alpha >= current_bounds.alpha {
+                        current_bounds.beta = bounds.beta;
+                    }
+                }
+            },
+            Vacant(vacant_entry) => {
+                vacant_entry.insert(bounds);
+            }
+        }
     }
 }

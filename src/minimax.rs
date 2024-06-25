@@ -58,7 +58,7 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
 
 
     let mut children_states = game_state.get_children_states();
-    // to symmetric_transpose
+    // TODO: This speeds things up for some states, but makes things slower for others. Think of ways to detect when to use it
     //children_states = children_states.iter().map(|child| child.get_symmetric_simplified_state()).collect();
     sort_children_states(&mut children_states, depth, cache);
 
@@ -69,18 +69,31 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
     let mut max_evaluation = f32::NEG_INFINITY;
 
 
-    if let Some(cached_value) = cache.valuations[depth].get(game_state) {
+
+
+    if let Some(cached_value) = cache.valuation_bounds[depth].get(game_state) {
+        // TODO: Check if this makes sense and if there are any other possible cases to cover
         if cached_value.alpha <= alpha && cached_value.beta >= beta {
             return cached_value.value;
         }
-        if cached_value.value >= cached_value.beta && cached_value.value >= beta {
+        // TODO: Why is the second condition necessary?
+        if cached_value.value >= beta && cached_value.value >= cached_value.beta {
             return cached_value.value;
         }
 
-        if cached_value.value > alpha {
-            alpha = cached_value.value;
+
+        // TODO: Is there a broader condition that can be used here without affecting the results?
+        if cached_value.beta <= beta {
+            if cached_value.value > alpha {
+                alpha = cached_value.value;
+                if alpha >= beta {
+                    return alpha;
+                }
+                max_evaluation = alpha;
+            }
         }
     }
+
 
 
     let mut evaluated_children = 0;
@@ -101,7 +114,7 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
 
     cache.pruned_states += children_states.len() - evaluated_children;
 
-    cache.valuations[depth].insert(game_state.clone(), Bounds { value: max_evaluation, alpha, beta });
+    cache.insert_valuation_bounds(depth, game_state.clone(), Bounds { value: max_evaluation, alpha, beta });
 
     return max_evaluation;
 }
