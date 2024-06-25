@@ -1,8 +1,9 @@
 pub mod minimax_cache;
 
 use std::time::Duration;
+use num_format::{Locale, ToFormattedString};
 use crate::game_state::GameState;
-use crate::minimax::minimax_cache::MinimaxCache;
+use crate::minimax::minimax_cache::{Bounds, MinimaxCache};
 
 pub fn readable_minmax_value(value: f32) -> String {
     // If the value is close to MAX or MIN
@@ -14,22 +15,24 @@ pub fn readable_minmax_value(value: f32) -> String {
         format!("#-{}", difference)
     } else {
         value.to_string()
-    }
+    };
 }
 
 // Allows for flexibly adding caching if needed
 fn get_static_evaluation(game_state: &GameState, cache: &mut MinimaxCache) -> f32 {
-    //return game_state.static_evaluation();
+    return game_state.static_evaluation();
 
-    if let Some(cached_value) = cache.static_valuations.get(game_state) {
+    /*
+    if let Some(cached_value) = cache.valuations[0].get(game_state) {
         return *cached_value;
     }
     let static_evaluation = game_state.static_evaluation();
-    cache.static_valuations.insert(game_state.clone(), static_evaluation);
+    cache.valuations[0].insert(game_state.clone(), static_evaluation);
     return static_evaluation;
+    */
 }
 
-fn sort_children_states(parent_state: &GameState, children_states: &mut Vec<GameState>, depth: usize, cache: &mut MinimaxCache) {
+fn sort_children_states(children_states: &mut Vec<GameState>, depth: usize, cache: &mut MinimaxCache) {
     if depth > 2 {
         // Create a vector of tuples with the static evaluation and the GameState
         let mut children_evaluations: Vec<(GameState, f32)> = children_states.iter().map(|state| (state.clone(), get_static_evaluation(state, cache))).collect();
@@ -37,15 +40,6 @@ fn sort_children_states(parent_state: &GameState, children_states: &mut Vec<Game
         children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         // Replace the children_states vector with the sorted vector
         *children_states = children_evaluations.iter().map(|(state, _)| state.clone()).collect();
-    }
-
-    if let Some(best_child) = cache.best_child.get(parent_state) {
-        if let Some(index) = children_states.iter().position(|state| state == best_child) {
-            if index != 0 {
-                let best_child = children_states.remove(index);
-                children_states.insert(0, best_child);
-            }
-        }
     }
 }
 
@@ -66,14 +60,29 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
     let mut children_states = game_state.get_children_states();
     // to symmetric_transpose
     //children_states = children_states.iter().map(|child| child.get_symmetric_simplified_state()).collect();
-    sort_children_states(game_state, &mut children_states, depth, cache);
+    sort_children_states(&mut children_states, depth, cache);
 
     if children_states.len() == 0 {
-        return f32::MIN
+        return f32::MIN;
     }
 
     let mut max_evaluation = f32::NEG_INFINITY;
-    let mut best_child_state = None;
+
+
+    if let Some(cached_value) = cache.valuations[depth].get(game_state) {
+        if cached_value.alpha <= alpha && cached_value.beta >= beta {
+            return cached_value.value;
+        }
+        if cached_value.value >= cached_value.beta && cached_value.value >= beta {
+            return cached_value.value;
+        }
+
+        if cached_value.value > alpha {
+            alpha = cached_value.value;
+        }
+    }
+
+
     let mut evaluated_children = 0;
     for child in &children_states {
         evaluated_children += 1;
@@ -81,7 +90,6 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
         let evaluation = -minimax(&flipped_state, depth - 1, -beta, -alpha, cache);
         if evaluation > max_evaluation {
             max_evaluation = evaluation;
-            best_child_state = Some(child.clone());
         }
         if evaluation > alpha {
             alpha = evaluation;
@@ -90,11 +98,10 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
             break;
         }
     }
-    if let Some(best_child) = best_child_state {
-        cache.best_child.insert(game_state.clone(), best_child);
-    }
 
     cache.pruned_states += children_states.len() - evaluated_children;
+
+    cache.valuations[depth].insert(game_state.clone(), Bounds { value: max_evaluation, alpha, beta });
 
     return max_evaluation;
 }
@@ -107,6 +114,7 @@ pub fn increasing_depth_minimax(game_state: &GameState, max_depth: usize, cutoff
 
     let mut last_evaluated_states = 0;
     let mut last_pruned_states = 0;
+    let mut last_time = start;
 
     for depth in 1..=max_depth {
         let duration = start.elapsed();
@@ -115,13 +123,13 @@ pub fn increasing_depth_minimax(game_state: &GameState, max_depth: usize, cutoff
         }
         value = minimax(game_state, depth, f32::NEG_INFINITY, f32::INFINITY, cache);
         reached_depth = depth;
-        println!("Depth: {}, value: {}, Evaluated states: {}, Pruned states: {}, Time elapsed: {:?}", depth, readable_minmax_value(value), cache.evaluated_states - last_evaluated_states, cache.pruned_states - last_pruned_states, start.elapsed());
+        println!("Depth: {}, value: {}, Evaluated states: {}, Pruned states: {}, Took: {:?}", depth, readable_minmax_value(value), (cache.evaluated_states - last_evaluated_states).to_formatted_string(&Locale::en), (cache.pruned_states - last_pruned_states).to_formatted_string(&Locale::en), last_time.elapsed());
         last_evaluated_states = cache.evaluated_states;
         last_pruned_states = cache.pruned_states;
+        last_time = std::time::Instant::now();
     }
     return value;
 }
-
 
 
 // This function is used to prioritize moves that reach a good game state faster, or delay a bad game state
@@ -149,7 +157,7 @@ pub fn minimax_with_moves(game_state: &GameState, depth: usize, mut alpha: f32, 
     }
 
     let mut children_states = game_state.get_children_states();
-    sort_children_states(game_state, &mut children_states, depth, cache);
+    sort_children_states(&mut children_states, depth, cache);
 
     if children_states.len() == 0 {
         return (f32::MIN, game_state_path);
@@ -178,5 +186,5 @@ pub fn minimax_with_moves(game_state: &GameState, depth: usize, mut alpha: f32, 
 
     game_state_path.extend(best_children_path);
 
-    return (move_f32_closer_to_zero(max_evaluation), game_state_path)
+    return (move_f32_closer_to_zero(max_evaluation), game_state_path);
 }
