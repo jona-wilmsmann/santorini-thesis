@@ -130,7 +130,7 @@ async fn main() {
 
     let start = Instant::now();
     let mut minimax_cache = MinimaxCache::new();
-    let value = minimax(&game_state, 12, f32::NEG_INFINITY, f32::INFINITY, &mut minimax_cache);
+    let value = minimax(&game_state, 50, f32::MIN, f32::MAX, &mut minimax_cache);
     //let value = increasing_depth_minimax(&game_state, 35, Duration::from_secs(600), &mut minimax_cache);
     let duration = start.elapsed();
 

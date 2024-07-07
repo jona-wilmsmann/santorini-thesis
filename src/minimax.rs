@@ -59,7 +59,7 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
 
     let mut children_states = game_state.get_children_states();
     // TODO: This speeds things up for some states, but makes things slower for others. Think of ways to detect when to use it
-    //children_states = children_states.iter().map(|child| child.get_symmetric_simplified_state()).collect();
+    children_states = children_states.iter().map(|child| child.get_symmetric_simplified_state()).collect();
     sort_children_states(&mut children_states, depth, cache);
 
     if children_states.len() == 0 {
@@ -70,14 +70,12 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
 
 
 
-
-    if let Some(cached_value) = cache.valuation_bounds[depth].get(game_state) {
+    if let Some(cached_value) = cache.get_valuation_bounds(depth, game_state) {
         // TODO: Check if this makes sense and if there are any other possible cases to cover
         if cached_value.alpha <= alpha && cached_value.beta >= beta {
             return cached_value.value;
         }
-        // TODO: Why is the second condition necessary?
-        if cached_value.value >= beta && cached_value.value >= cached_value.beta {
+        if cached_value.value >= beta {
             return cached_value.value;
         }
 
@@ -86,9 +84,6 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
         if cached_value.beta <= beta {
             if cached_value.value > alpha {
                 alpha = cached_value.value;
-                if alpha >= beta {
-                    return alpha;
-                }
                 max_evaluation = alpha;
             }
         }

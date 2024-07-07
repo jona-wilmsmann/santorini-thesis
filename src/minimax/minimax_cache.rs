@@ -25,6 +25,10 @@ impl MinimaxCache {
         };
     }
 
+    pub fn get_valuation_bounds(&self, depth: usize, game_state: &GameState) -> Option<&Bounds> {
+        return self.valuation_bounds[depth].get(game_state);
+    }
+
     pub fn insert_valuation_bounds(&mut self, depth: usize, game_state: GameState, bounds: Bounds) {
         //self.valuation_bounds[depth].insert(game_state, bounds);
 
