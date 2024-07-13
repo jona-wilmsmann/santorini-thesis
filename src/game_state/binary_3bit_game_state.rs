@@ -788,6 +788,9 @@ impl Binary3BitGameState {
     }
 
     pub fn get_continuous_block_id_count(block_count: usize) -> u64 {
+        if block_count > Self::TILE_HEIGHT_COMBINATIONS.len() {
+            return 0;
+        }
         let mut continuous_block_id_count = 0;
 
         for combination in &Self::TILE_HEIGHT_COMBINATIONS[block_count] {

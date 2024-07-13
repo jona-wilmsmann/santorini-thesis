@@ -4,6 +4,7 @@
 mod game_state;
 mod minimax;
 mod measurements;
+mod precompute_state_winner;
 
 use std::time::{Duration, Instant};
 use num_format::{Locale, ToFormattedString};
@@ -13,6 +14,7 @@ use crate::game_state::utils::random_state_generation::generate_random_state;
 use crate::measurements::create_csv_report::create_csv_report;
 use crate::minimax::{readable_minmax_value, minimax_with_moves, minimax, increasing_depth_minimax};
 use crate::minimax::minimax_cache::MinimaxCache;
+use crate::precompute_state_winner::{presolve_state_winner};
 
 fn measure_minimax_and_log_moves(game_state: &GameState, depth: usize) {
     let mut minimax_cache = MinimaxCache::new();
@@ -35,93 +37,43 @@ fn measure_minimax_and_log_moves(game_state: &GameState, depth: usize) {
 
 #[tokio::main]
 async fn main() {
-    /*
-    let depth = 3;
-    for _ in 0..1000000 {
-        let random_state = generate_random_state();
-        let game_state = GameState::from_generic_game_state(&random_state);
-        let simplified_state = game_state.get_symmetric_simplified_state();
+    let num_threads = std::thread::available_parallelism().map_or(1, |n| n.get());
 
-        let original_minimax = minimax(&game_state, depth, f32::NEG_INFINITY, f32::INFINITY, &mut MinimaxCache::new());
-        let simplified_minimax = minimax(&simplified_state, depth, f32::NEG_INFINITY, f32::INFINITY, &mut MinimaxCache::new());
+    for block_count in (0..=60).rev() {
+        println!("Starting presolve for block {}...", block_count);
+        presolve_state_winner(block_count, num_threads - 4).await.unwrap();
+    }
 
-        if original_minimax != simplified_minimax {
-            println!("Minimax mismatch!");
-            println!("Original state (Minimax: {}):\n{}", original_minimax, game_state);
-            println!("Simplified state (Minimax: {}):\n{}", simplified_minimax, simplified_state);
 
-            let (val, moves) = minimax_with_moves(&game_state, depth, f32::NEG_INFINITY, f32::INFINITY, &mut MinimaxCache::new());
-            for (i, state) in moves.iter().enumerate() {
-                let corrected_state = if i % 2 == 0 {
-                    state
-                } else {
-                    &state.get_flipped_state()
-                };
-                let player = if i % 2 == 0 { "A" } else { "B" };
-                println!("State {} (Player {} to move):\n{}", i, player, corrected_state);
-            }
-
-            let (val, moves) = minimax_with_moves(&simplified_state, depth, f32::NEG_INFINITY, f32::INFINITY, &mut MinimaxCache::new());
-            for (i, state) in moves.iter().enumerate() {
-                let corrected_state = if i % 2 == 0 {
-                    state
-                } else {
-                    &state.get_flipped_state()
-                };
-                let player = if i % 2 == 0 { "A" } else { "B" };
-                println!("Simplified state {} (Player {} to move):\n{}", i, player, corrected_state);
-            }
+    return;
+    let mut states = Vec::new();
+    let block_num = 50;
+    println!("Checking count {}", GameState::get_continuous_block_id_count(block_num));
+    for i in 0..GameState::get_continuous_block_id_count(block_num) {
+        if i % 1000000 == 0 {
+            println!("Progress: {}", i);
+        }
+        let state = GameState::from_continuous_block_id(block_num, i);
+        let continuous_block_id = state.get_continuous_block_id();
+        if continuous_block_id != i {
+            println!("Mismatch: {} != {}", continuous_block_id, i);
             break;
         }
+        states.push(state.raw_value());
     }
 
-     */
+    states.sort();
+    states.dedup();
 
-
-
-    /*
-    let generic_game_state = GenericGameState::new(12, 1, [4,2,2,4,3,0,1,0,2,2,2,4,1,4,3,0]).unwrap();
-    let game_state = GameState::from_generic_game_state(&generic_game_state);
-    let simplified_state = game_state.get_symmetric_simplified_state();
-
-    let core_val = minimax(&game_state, 3, f32::NEG_INFINITY, f32::INFINITY, &mut MinimaxCache::new());
-    let simplified_core_val = minimax(&simplified_state, 3, f32::NEG_INFINITY, f32::INFINITY, &mut MinimaxCache::new());
-
-
-    let (original_val, original_moves) = minimax_with_moves(&game_state, 3, f32::NEG_INFINITY, f32::INFINITY, &mut MinimaxCache::new());
-    let (simplified_val, simplified_moves) = minimax_with_moves(&simplified_state, 3, f32::NEG_INFINITY, f32::INFINITY, &mut MinimaxCache::new());
-
-    println!("Original state (Minimax: {}):\n{}", original_val, game_state);
-    for (i, state) in original_moves.iter().enumerate() {
-        let corrected_state = if i % 2 == 0 {
-            state
-        } else {
-            &state.get_flipped_state()
-        };
-        let player = if i % 2 == 0 { "A" } else { "B" };
-        println!("State {} (Player {} to move):\n{}", i, player, corrected_state);
-    }
-
-    println!("Simplified state (Minimax: {}):\n{}", simplified_val, simplified_state);
-    for (i, state) in simplified_moves.iter().enumerate() {
-        let corrected_state = if i % 2 == 0 {
-            state
-        } else {
-            &state.get_flipped_state()
-        };
-        let player = if i % 2 == 0 { "A" } else { "B" };
-        println!("Simplified state {} (Player {} to move):\n{}", i, player, corrected_state);
-    }
-
-    println!("Original minimax: {}, simplified minimax: {}", core_val, simplified_core_val);
-    */
+    println!("States: {}", states.len());
+    return;
 
 
     //create_csv_report(100, 15..=50, 1..=10).await.unwrap();
 
 
     //let generic_game_state = GenericGameState::new(0, 10, [0,0,0,4,0,0,0,4,0,0,0,4,4,4,4,4]).unwrap();
-    let generic_game_state = GenericGameState::new(5, 9, [1,1,1,0,0,0,1,4,4,0,1,1,0,1,2,4]).unwrap();
+    let generic_game_state = GenericGameState::new(5, 9, [1, 1, 1, 0, 0, 0, 1, 4, 4, 0, 1, 1, 0, 1, 2, 4]).unwrap();
     let game_state = GameState::from_generic_game_state(&generic_game_state);
 
 
@@ -136,5 +88,4 @@ async fn main() {
 
     println!("Minimax value: {}, took: {:?}", readable_minmax_value(value), duration);
     println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
-
 }
