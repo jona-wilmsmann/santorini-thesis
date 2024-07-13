@@ -2,6 +2,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use crate::game_state::generic_game_state::GenericGameState;
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
+use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
 
 /*
 Bits 0-47: 3 bits per tile, 16 tiles
@@ -90,6 +91,16 @@ impl Binary3BitGameState {
             data >>= 3;
         }
         return position_heights;
+    }
+
+    fn get_block_count(self) -> u64 {
+        let mut block_count = 0;
+        let mut data = self.0;
+        for _ in 0..16 {
+            block_count += data & 0x7;
+            data >>= 3;
+        }
+        return block_count;
     }
 
     pub fn new(binary_game_state: u64) -> Self {
@@ -318,14 +329,14 @@ impl Binary3BitGameState {
 
     const fn get_rotated_tile_id(tile_id: usize, ccw_90_rotations: usize) -> usize {
         let mut new_tile_id = tile_id;
-        const ROTATION_MAP: [usize; 16] = [3,7,11,15,2,6,10,14,1,5,9,13,0,4,8,12];
+        const ROTATION_MAP: [usize; 16] = [3, 7, 11, 15, 2, 6, 10, 14, 1, 5, 9, 13, 0, 4, 8, 12];
         let mut i = 0;
         while i < ccw_90_rotations {
             new_tile_id = ROTATION_MAP[new_tile_id];
             i += 1;
         }
 
-        return new_tile_id
+        return new_tile_id;
     }
 
     const PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE: [[SymmetricMirrorType; 16]; 16] =
@@ -342,10 +353,10 @@ impl Binary3BitGameState {
                 let player_b_pos = Self::TILE_ID_TO_POSITION[player_b_tile];
 
                 let ccw_rotations = match player_a_tile {
-                    0|1|4|5 => 0,
-                    2|3|6|7 => 3,
-                    10|11|14|15 => 2,
-                    8|9|12|13 => 1,
+                    0 | 1 | 4 | 5 => 0,
+                    2 | 3 | 6 | 7 => 3,
+                    10 | 11 | 14 | 15 => 2,
+                    8 | 9 | 12 | 13 => 1,
                     _ => panic!("Invalid tile id")
                 };
 
@@ -357,7 +368,7 @@ impl Binary3BitGameState {
                 } else {
                     let player_b_tile_rotated = Self::get_rotated_tile_id(player_b_tile, ccw_rotations);
                     match player_b_tile_rotated {
-                        4|8|9|12|13|14 => true,
+                        4 | 8 | 9 | 12 | 13 | 14 => true,
                         _ => false
                     }
                 };
@@ -415,88 +426,79 @@ impl Binary3BitGameState {
 
         return Self(new_state);
     }
-
-
 }
 
 const INVALID_INDEX: usize = usize::MAX;
+
 #[derive(Copy, Clone)]
-struct SimplifiedPositionCombination {
-    player_a_tile_id: usize,
-    player_b_tile_ids: [usize; 15],
-}
-#[derive(Copy, Clone)]
-struct SimplifiedStateVariants {
+struct SimplifiedStateVariant {
     player_a_position: usize,
     player_b_options: usize,
     player_b_positions: [usize; 15],
-    total_possible_states: u64
+    total_possible_states: u64,
+}
+
+impl SimplifiedStateVariant {
+    const fn new(player_a_tile_id: usize, player_b_tile_ids: [usize; 15]) -> Self {
+        let mut player_b_options = 0;
+        let mut player_b_positions = [INVALID_INDEX; 15];
+
+        let mut i = 0;
+        while i < player_b_tile_ids.len() {
+            let player_b_tile_id = player_b_tile_ids[i];
+            if player_b_tile_id == INVALID_INDEX {
+                break;
+            }
+            player_b_positions[i] = Binary3BitGameState::TILE_ID_TO_POSITION[player_b_tile_id];
+            player_b_options += 1;
+            i += 1;
+        }
+
+        let total_possible_states = player_b_options as u64 * 3u64.pow(2) * 5u64.pow(14);
+
+        return Self {
+            player_a_position: Binary3BitGameState::TILE_ID_TO_POSITION[player_a_tile_id],
+            player_b_options,
+            player_b_positions,
+            total_possible_states,
+        };
+    }
 }
 
 impl Binary3BitGameState {
-
-    const POSSIBLE_SIMPLIFIED_PLAYER_TILES: [SimplifiedPositionCombination; 3] = [
-        SimplifiedPositionCombination {
-            player_a_tile_id: 0,
-            player_b_tile_ids: [1,2,3,5,6,7,10,11,15, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX]
-        },
-        SimplifiedPositionCombination {
-            player_a_tile_id: 1,
-            player_b_tile_ids: [0,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
-        },
-        SimplifiedPositionCombination {
-            player_a_tile_id: 5,
-            player_b_tile_ids: [0,1,2,3,6,7,10,11,15, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX]
-        }
+    const POSSIBLE_SIMPLIFIED_STATE_VARIANTS: [SimplifiedStateVariant; 3] = [
+        SimplifiedStateVariant::new(
+            0,
+            [1, 2, 3, 5, 6, 7, 10, 11, 15, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX],
+        ),
+        SimplifiedStateVariant::new(
+            1,
+            [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        ),
+        SimplifiedStateVariant::new(
+            5,
+            [0, 1, 2, 3, 6, 7, 10, 11, 15, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX],
+        ),
     ];
 
-    const POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS: [SimplifiedStateVariants; 3] = Self::precompute_possible_simplified_player_positions();
-
-    const fn precompute_possible_simplified_player_positions() -> [SimplifiedStateVariants; 3] {
-        let mut possible_simplified_player_positions = [SimplifiedStateVariants {
-            player_a_position: 0,
-            player_b_options: 0,
-            player_b_positions: [INVALID_INDEX; 15],
-            total_possible_states: 0
-        }; 3];
-
-        let mut combination_index = 0;
-        while combination_index < Self::POSSIBLE_SIMPLIFIED_PLAYER_TILES.len() {
-            let combination = Self::POSSIBLE_SIMPLIFIED_PLAYER_TILES[combination_index];
-
-            possible_simplified_player_positions[combination_index].player_a_position = Self::TILE_ID_TO_POSITION[combination.player_a_tile_id];
-
-            let mut player_b_index = 0;
-            while player_b_index < combination.player_b_tile_ids.len() {
-                let player_b_tile_id = combination.player_b_tile_ids[player_b_index];
-                if player_b_tile_id == INVALID_INDEX {
-                    break;
-                }
-                let player_b_position = Self::TILE_ID_TO_POSITION[player_b_tile_id];
-                possible_simplified_player_positions[combination_index].player_b_positions[player_b_index] = player_b_position;
-                possible_simplified_player_positions[combination_index].player_b_options += 1;
-
-                player_b_index += 1;
-            }
-
-            // 3^2 (height of player A and player B tiles) * 5^14 (height of other tiles)
-            let total_possible_states = possible_simplified_player_positions[combination_index].player_b_options as u64 * 3u64.pow(2) * 5u64.pow(14);
-            possible_simplified_player_positions[combination_index].total_possible_states = total_possible_states;
-
-            combination_index += 1;
-        }
-
-        return possible_simplified_player_positions;
-    }
-
-    pub const CONTINUOUS_ID_COUNT: u64 = Self::precompute_continuous_id_count();
-    const fn precompute_continuous_id_count() -> u64 {
-        let mut continuous_id_count = 0;
+    const SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS: usize = Self::precompute_summed_possible_simplified_state_options();
+    const fn precompute_summed_possible_simplified_state_options() -> usize {
+        let mut summed_possible_simplified_state_options = 0;
         let mut variant_index = 0;
-        while variant_index < Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS.len() {
-            continuous_id_count += Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS[variant_index].total_possible_states;
+        while variant_index < Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.len() {
+            summed_possible_simplified_state_options += Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS[variant_index].player_b_options;
             variant_index += 1;
         }
+        return summed_possible_simplified_state_options;
+    }
+
+    pub fn get_continuous_id_count() -> u64 {
+        let mut continuous_id_count = 0;
+
+        for variant in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
+            continuous_id_count += variant.total_possible_states;
+        }
+
         return continuous_id_count;
     }
 
@@ -508,7 +510,7 @@ impl Binary3BitGameState {
             return false;
         }
 
-        for combination in Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS.iter() {
+        for combination in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
             if player_a_position == combination.player_a_position {
                 for i in 0..combination.player_b_options {
                     if player_b_position == combination.player_b_positions[i] {
@@ -528,13 +530,13 @@ impl Binary3BitGameState {
         debug_assert!(self.is_simplified());
 
 
-        let matching_variant_index = Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS.iter().position(|&x| x.player_a_position == player_a_position as usize)
+        let matching_variant_index = Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter().position(|&x| x.player_a_position == player_a_position as usize)
             .expect("No variant matching player A position found, this can only happen for non simplified states");
-        let matching_variant = &Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS[matching_variant_index];
+        let matching_variant = &Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS[matching_variant_index];
 
         let mut variant_offset = 0;
         for i in 0..matching_variant_index {
-            variant_offset += Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS[i].total_possible_states;
+            variant_offset += Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS[i].total_possible_states;
         }
 
         let player_b_position_index = matching_variant.player_b_positions.iter().position(|&x| x == player_b_position as usize)
@@ -561,7 +563,7 @@ impl Binary3BitGameState {
 
     pub fn from_continuous_id(mut continuous_id: u64) -> Self {
         let mut matching_variant_option = None;
-        for variant in Self::POSSIBLE_SIMPLIFIED_PLAYER_POSITIONS.iter() {
+        for variant in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
             if continuous_id < variant.total_possible_states {
                 matching_variant_option = Some(variant);
                 break;
@@ -586,8 +588,387 @@ impl Binary3BitGameState {
 
         raw_value |= player_a_position << 48;
         raw_value |= player_b_position << 52;
-        // TODO Check player b won
+
+        // Winning bits don't need to be checked, because the continuous mapping does not map to states where the players are on height 3
+
         return Self(raw_value);
     }
+}
 
+
+#[derive(Debug)]
+struct HeightCount {
+    height: u8,
+    count: u8,
+}
+
+#[derive(Copy, Clone, Debug)]
+struct TileHeightCombination {
+    player_a_height: u8,
+    player_b_height: u8,
+    height_4_tiles: u8,
+    height_3_tiles: u8,
+    height_2_tiles: u8,
+    height_1_tiles: u8,
+    possible_state_count: u64, // Including the player positions
+}
+
+impl TileHeightCombination {
+    const fn new(player_a_height: u8, player_b_height: u8, height_4_tiles: u8, height_3_tiles: u8, height_2_tiles: u8, height_1_tiles: u8) -> Self {
+        debug_assert!(player_a_height <= 2);
+        debug_assert!(player_b_height <= 2);
+        debug_assert!(height_4_tiles <= 14);
+        debug_assert!(height_3_tiles <= 14);
+        debug_assert!(height_2_tiles <= 14);
+        debug_assert!(height_1_tiles <= 14);
+        debug_assert!(height_4_tiles + height_3_tiles + height_2_tiles + height_1_tiles <= 14);
+
+
+        let possible_state_count = get_binomial_coefficient(14, height_4_tiles as u64) *
+            get_binomial_coefficient(14 - height_4_tiles as u64, height_3_tiles as u64) *
+            get_binomial_coefficient(14 - height_4_tiles as u64 - height_3_tiles as u64, height_2_tiles as u64) *
+            get_binomial_coefficient(14 - height_4_tiles as u64 - height_3_tiles as u64 - height_2_tiles as u64, height_1_tiles as u64) *
+            Binary3BitGameState::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64; // Player A and B positions
+
+
+        return Self {
+            player_a_height,
+            player_b_height,
+            height_4_tiles,
+            height_3_tiles,
+            height_2_tiles,
+            height_1_tiles,
+            possible_state_count,
+        };
+    }
+
+    const fn new_invalid() -> Self {
+        return Self {
+            player_a_height: u8::MAX,
+            player_b_height: u8::MAX,
+            height_4_tiles: u8::MAX,
+            height_3_tiles: u8::MAX,
+            height_2_tiles: u8::MAX,
+            height_1_tiles: u8::MAX,
+            possible_state_count: 0,
+        };
+    }
+
+    const fn is_valid(&self) -> bool {
+        return self.player_a_height != u8::MAX;
+    }
+
+    fn get_height_counts(self) -> [HeightCount; 4] {
+        return [
+            HeightCount { height: 4, count: self.height_4_tiles },
+            HeightCount { height: 3, count: self.height_3_tiles },
+            HeightCount { height: 2, count: self.height_2_tiles },
+            HeightCount { height: 1, count: self.height_1_tiles }
+        ];
+    }
+}
+
+impl Binary3BitGameState {
+    const MAX_TILE_HEIGHT_COMBINATIONS: usize = Self::precompute_max_tile_height_combinations();
+    const fn precompute_max_tile_height_combinations() -> usize {
+        let mut max_tile_height_combinations = 0;
+
+        let mut block_amount: usize = 0;
+        while block_amount <= 64 {
+            let mut possible_combinations = 0;
+            let mut height_4_tiles = block_amount as isize / 4;
+            while height_4_tiles >= 0 {
+                let mut height_3_tiles = (block_amount as isize - height_4_tiles * 4) / 3;
+                while height_3_tiles >= 0 {
+                    let mut height_2_tiles = (block_amount as isize - height_4_tiles * 4 - height_3_tiles * 3) / 2;
+                    while height_2_tiles >= 0 {
+                        let height_1_tiles = block_amount as isize - height_4_tiles * 4 - height_3_tiles * 3 - height_2_tiles * 2;
+                        if height_4_tiles + height_3_tiles + height_2_tiles + height_1_tiles <= 16 {
+                            let height_0_tiles = 16 - height_4_tiles - height_3_tiles - height_2_tiles - height_1_tiles;
+                            let tile_count = [height_0_tiles, height_1_tiles, height_2_tiles, height_3_tiles, height_4_tiles];
+
+                            let mut player_a_height = 0;
+                            while player_a_height <= 2 {
+                                if tile_count[player_a_height as usize] <= 0 {
+                                    player_a_height += 1;
+                                    continue;
+                                }
+
+                                let mut player_b_height = 0;
+                                while player_b_height <= 2 {
+                                    if tile_count[player_b_height as usize] <= if player_b_height == player_a_height { 1 } else { 0 } {
+                                        player_b_height += 1;
+                                        continue;
+                                    }
+
+                                    possible_combinations += 1;
+                                    if possible_combinations > max_tile_height_combinations {
+                                        max_tile_height_combinations = possible_combinations;
+                                    }
+
+                                    player_b_height += 1;
+                                }
+                                player_a_height += 1;
+                            }
+                        }
+                        height_2_tiles -= 1;
+                    }
+                    height_3_tiles -= 1;
+                }
+                height_4_tiles -= 1;
+            }
+
+            block_amount += 1;
+        }
+
+        return max_tile_height_combinations;
+    }
+    pub fn get_max_tile_height_combinations() -> usize {
+        return Self::MAX_TILE_HEIGHT_COMBINATIONS;
+    }
+
+    const TILE_HEIGHT_COMBINATIONS: [[TileHeightCombination; Self::MAX_TILE_HEIGHT_COMBINATIONS]; 65] = Self::precompute_tile_height_combinations();
+    const fn precompute_tile_height_combinations() -> [[TileHeightCombination; Self::MAX_TILE_HEIGHT_COMBINATIONS]; 65] {
+        let mut tile_height_combinations = [[TileHeightCombination::new_invalid(); Self::MAX_TILE_HEIGHT_COMBINATIONS]; 65];
+
+        let mut block_amount: usize = 0;
+        while block_amount <= 64 {
+            let mut combinations_index = 0;
+            let mut height_4_tiles = block_amount as isize / 4;
+            while height_4_tiles >= 0 {
+                let mut height_3_tiles = (block_amount as isize - height_4_tiles * 4) / 3;
+                while height_3_tiles >= 0 {
+                    let mut height_2_tiles = (block_amount as isize - height_4_tiles * 4 - height_3_tiles * 3) / 2;
+                    while height_2_tiles >= 0 {
+                        let height_1_tiles = block_amount as isize - height_4_tiles * 4 - height_3_tiles * 3 - height_2_tiles * 2;
+                        if height_4_tiles + height_3_tiles + height_2_tiles + height_1_tiles <= 16 {
+                            let height_0_tiles = 16 - height_4_tiles - height_3_tiles - height_2_tiles - height_1_tiles;
+                            let tile_count = [height_0_tiles, height_1_tiles, height_2_tiles, height_3_tiles, height_4_tiles];
+
+                            let mut player_a_height = 0;
+                            while player_a_height <= 2 {
+                                if tile_count[player_a_height as usize] <= 0 {
+                                    player_a_height += 1;
+                                    continue;
+                                }
+
+                                let mut player_b_height = 0;
+                                while player_b_height <= 2 {
+                                    if tile_count[player_b_height as usize] <= if player_b_height == player_a_height { 1 } else { 0 } {
+                                        player_b_height += 1;
+                                        continue;
+                                    }
+
+                                    tile_height_combinations[block_amount][combinations_index] = TileHeightCombination::new(
+                                        player_a_height as u8,
+                                        player_b_height as u8,
+                                        (height_4_tiles - if player_a_height == 4 { 1 } else { 0 } - if player_b_height == 4 { 1 } else { 0 }) as u8,
+                                        (height_3_tiles - if player_a_height == 3 { 1 } else { 0 } - if player_b_height == 3 { 1 } else { 0 }) as u8,
+                                        (height_2_tiles - if player_a_height == 2 { 1 } else { 0 } - if player_b_height == 2 { 1 } else { 0 }) as u8,
+                                        (height_1_tiles - if player_a_height == 1 { 1 } else { 0 } - if player_b_height == 1 { 1 } else { 0 }) as u8,
+                                    );
+                                    combinations_index += 1;
+
+                                    player_b_height += 1;
+                                }
+                                player_a_height += 1;
+                            }
+                        }
+                        height_2_tiles -= 1;
+                    }
+                    height_3_tiles -= 1;
+                }
+                height_4_tiles -= 1;
+            }
+
+            block_amount += 1;
+        }
+
+        return tile_height_combinations;
+    }
+
+    pub fn get_continuous_block_id_count(block_count: usize) -> u64 {
+        let mut continuous_block_id_count = 0;
+
+        for combination in &Self::TILE_HEIGHT_COMBINATIONS[block_count] {
+            if !combination.is_valid() {
+                break;
+            }
+            continuous_block_id_count += combination.possible_state_count;
+        }
+
+        return continuous_block_id_count;
+    }
+
+    fn get_possible_state_count_for_remaining(mut remaining_tiles: u64, remaining_counts: Vec<u64>) -> u64 {
+        debug_assert!(remaining_tiles >= remaining_counts.iter().sum());
+
+        let mut possible_state_count = 1;
+
+        for remaining_count in remaining_counts {
+            possible_state_count *= get_binomial_coefficient(remaining_tiles, remaining_count);
+            remaining_tiles -= remaining_count;
+        }
+
+        return possible_state_count;
+    }
+
+
+    pub fn get_continuous_block_id(self) -> u64 {
+        debug_assert!(self.is_simplified());
+
+        let block_count = self.get_block_count();
+
+        let position_heights = self.get_position_heights();
+
+        let player_a_position = self.get_player_a_position();
+        let player_b_position = self.get_player_b_position();
+        let player_a_height = position_heights[player_a_position as usize];
+        let player_b_height = position_heights[player_b_position as usize];
+
+        let mut height_counts: [u8; 5] = [0; 5];
+        for (position, height) in position_heights.iter().enumerate() {
+            if position == player_a_position as usize || position == player_b_position as usize {
+                continue;
+            }
+            height_counts[*height as usize] += 1;
+        }
+
+
+        let tile_height_combinations = Self::TILE_HEIGHT_COMBINATIONS[block_count as usize];
+
+        let mut combination_id_offset = 0;
+        let mut matching_combination_option = None;
+        for combination in &tile_height_combinations {
+            if combination.player_a_height == player_a_height &&
+                combination.player_b_height == player_b_height &&
+                combination.height_4_tiles == height_counts[4] &&
+                combination.height_3_tiles == height_counts[3] &&
+                combination.height_2_tiles == height_counts[2] &&
+                combination.height_1_tiles == height_counts[1] {
+                matching_combination_option = Some(combination);
+                break;
+            }
+            combination_id_offset += combination.possible_state_count;
+        }
+        let matching_combination = matching_combination_option.expect("No matching combination found, this should not be possible");
+
+
+        let mut available_positions: Vec<usize> = (0..=15).filter(|&x| x != player_a_position as usize && x != player_b_position as usize).collect();
+        let height_counts = matching_combination.get_height_counts();
+
+        let mut tile_id_offset = 0;
+        for (height_count_index, height_count) in height_counts.iter().enumerate() {
+            let mut tile_offset = 0;
+
+            let remaining_counts: Vec<u64> = height_counts.iter().skip(height_count_index + 1).map(|x| x.count as u64).collect();
+            let remaining_height_options = Self::get_possible_state_count_for_remaining(available_positions.len() as u64 - height_count.count as u64, remaining_counts);
+
+            for height_count_offset in 0..height_count.count {
+                while position_heights[available_positions[tile_offset]] != height_count.height {
+                    let current_height_options_if_tile_is_chosen = get_binomial_coefficient((available_positions.len() - tile_offset - 1) as u64, (height_count.count - height_count_offset - 1) as u64);
+                    let possible_state_count_if_tile_is_chosen = current_height_options_if_tile_is_chosen * remaining_height_options;
+
+                    tile_id_offset += possible_state_count_if_tile_is_chosen;
+                    tile_offset += 1;
+                }
+
+                available_positions.remove(tile_offset);
+            }
+        }
+
+        let mut continuous_id = combination_id_offset + tile_id_offset * Self::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64;
+
+        for variant in &Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS {
+            if player_a_position as usize == variant.player_a_position {
+                let player_b_position_index = variant.player_b_positions.iter().position(|&x| x == player_b_position as usize)
+                    .expect("Player B position not found, this can only happen for non simplified states");
+                continuous_id += player_b_position_index as u64;
+                break;
+            }
+            continuous_id += variant.player_b_options as u64;
+        }
+
+        return continuous_id;
+    }
+
+    pub fn from_continuous_block_id(block_count: usize, mut continuous_id: u64) -> Self {
+        let tile_height_combinations = Self::TILE_HEIGHT_COMBINATIONS[block_count];
+
+        let mut matching_combination_option = None;
+        for combination in &tile_height_combinations {
+            if continuous_id < combination.possible_state_count {
+                matching_combination_option = Some(combination);
+                break;
+            }
+            continuous_id -= combination.possible_state_count;
+        }
+        let matching_combination = matching_combination_option.expect("No matching combination found, this means that the continuous id is too high");
+
+        // Found the correct combination
+
+        let mut available_positions: Vec<usize> = (0..=15).collect();
+        let mut position_heights = [0; 16];
+
+
+        let mut option_index = continuous_id % Self::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64;
+        continuous_id /= Self::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64;
+
+        let mut player_a_position_option = None;
+        let mut player_b_position_option = None;
+        for variant in &Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS {
+            if option_index < variant.player_b_options as u64 {
+                player_a_position_option = Some(variant.player_a_position);
+                player_b_position_option = Some(variant.player_b_positions[option_index as usize]);
+                break;
+            }
+            option_index -= variant.player_b_options as u64;
+        }
+        let player_a_position = player_a_position_option.expect("No matching variant found, this should not be possible");
+        let player_b_position = player_b_position_option.expect("No matching variant found, this should not be possible");
+
+
+        available_positions.retain(|&x| x != player_a_position && x != player_b_position);
+        position_heights[player_a_position] = matching_combination.player_a_height;
+        position_heights[player_b_position] = matching_combination.player_b_height;
+
+
+        let height_counts = matching_combination.get_height_counts();
+
+        for (height_count_index, height_count) in height_counts.iter().enumerate() {
+            let mut tile_offset = 0;
+
+            let remaining_counts: Vec<u64> = height_counts.iter().skip(height_count_index + 1).map(|x| x.count as u64).collect();
+            let remaining_height_options = Self::get_possible_state_count_for_remaining(available_positions.len() as u64 - height_count.count as u64, remaining_counts);
+
+            for height_count_offset in 0..height_count.count {
+                loop {
+                    let current_height_options_if_tile_is_chosen = get_binomial_coefficient((available_positions.len() - tile_offset - 1) as u64, (height_count.count - height_count_offset - 1) as u64);
+                    let possible_state_count_if_tile_is_chosen = current_height_options_if_tile_is_chosen * remaining_height_options;
+
+                    if continuous_id < possible_state_count_if_tile_is_chosen {
+                        break;
+                    }
+
+                    continuous_id -= possible_state_count_if_tile_is_chosen;
+                    tile_offset += 1;
+                }
+
+                // Found the correct tile
+                let position = available_positions.remove(tile_offset);
+                position_heights[position] = height_count.height;
+            }
+        }
+
+        let mut raw_value = 0;
+        for height in position_heights.iter().rev() {
+            raw_value = raw_value << 3 | *height as u64;
+        }
+
+        raw_value |= (player_a_position as u64) << 48;
+        raw_value |= (player_b_position as u64) << 52;
+
+        // Winning bits don't need to be checked, because the continuous mapping does not map to states where the players are on height 3
+        return Self(raw_value);
+    }
 }

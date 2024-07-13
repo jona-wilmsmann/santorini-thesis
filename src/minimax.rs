@@ -19,7 +19,7 @@ pub fn readable_minmax_value(value: f32) -> String {
 }
 
 // Allows for flexibly adding caching if needed
-fn get_static_evaluation(game_state: &GameState, cache: &mut MinimaxCache) -> f32 {
+fn get_static_evaluation(game_state: &GameState, _cache: &mut MinimaxCache) -> f32 {
     return game_state.static_evaluation();
 
     /*
