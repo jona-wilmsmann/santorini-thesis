@@ -1,5 +1,8 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
+use std::iter::Map;
+use once_cell::sync::Lazy;
 use crate::game_state::generic_game_state::GenericGameState;
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
@@ -93,7 +96,7 @@ impl Binary3BitGameState {
         return position_heights;
     }
 
-    fn get_block_count(self) -> u64 {
+    pub fn get_block_count(self) -> u64 {
         let mut block_count = 0;
         let mut data = self.0;
         for _ in 0..16 {
@@ -602,7 +605,17 @@ struct HeightCount {
     count: u8,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+struct TileHeightCombinationInput {
+    player_a_height: u8,
+    player_b_height: u8,
+    height_4_tiles: u8,
+    height_3_tiles: u8,
+    height_2_tiles: u8,
+    height_1_tiles: u8,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
 struct TileHeightCombination {
     player_a_height: u8,
     player_b_height: u8,
@@ -611,10 +624,11 @@ struct TileHeightCombination {
     height_2_tiles: u8,
     height_1_tiles: u8,
     possible_state_count: u64, // Including the player positions
+    previous_summed_state_offset: u64, // Sum of all possible states before this one
 }
 
 impl TileHeightCombination {
-    const fn new(player_a_height: u8, player_b_height: u8, height_4_tiles: u8, height_3_tiles: u8, height_2_tiles: u8, height_1_tiles: u8) -> Self {
+    const fn new(player_a_height: u8, player_b_height: u8, height_4_tiles: u8, height_3_tiles: u8, height_2_tiles: u8, height_1_tiles: u8, previous_summed_state_offset: u64) -> Self {
         debug_assert!(player_a_height <= 2);
         debug_assert!(player_b_height <= 2);
         debug_assert!(height_4_tiles <= 14);
@@ -639,6 +653,7 @@ impl TileHeightCombination {
             height_2_tiles,
             height_1_tiles,
             possible_state_count,
+            previous_summed_state_offset,
         };
     }
 
@@ -651,6 +666,7 @@ impl TileHeightCombination {
             height_2_tiles: u8::MAX,
             height_1_tiles: u8::MAX,
             possible_state_count: 0,
+            previous_summed_state_offset: u64::MAX,
         };
     }
 
@@ -668,10 +684,36 @@ impl TileHeightCombination {
     }
 }
 
+
+static COMBINATION_OFFSET_MAP: Lazy<HashMap<TileHeightCombinationInput, u64>> = Lazy::new(|| get_combination_offset_map());
+
+pub fn get_combination_offset_map() -> HashMap<TileHeightCombinationInput, u64> {
+    let mut combination_offset_map = HashMap::new();
+
+    for block_count in 0..=64 {
+        for combination in &Binary3BitGameState::TILE_HEIGHT_COMBINATIONS[block_count] {
+            if !combination.is_valid() {
+                break;
+            }
+            let input = TileHeightCombinationInput {
+                player_a_height: combination.player_a_height,
+                player_b_height: combination.player_b_height,
+                height_4_tiles: combination.height_4_tiles,
+                height_3_tiles: combination.height_3_tiles,
+                height_2_tiles: combination.height_2_tiles,
+                height_1_tiles: combination.height_1_tiles,
+            };
+            combination_offset_map.insert(input, combination.previous_summed_state_offset);
+        }
+    }
+
+    return combination_offset_map;
+}
+
 impl Binary3BitGameState {
-    const MAX_TILE_HEIGHT_COMBINATIONS: usize = Self::precompute_max_tile_height_combinations();
-    const fn precompute_max_tile_height_combinations() -> usize {
-        let mut max_tile_height_combinations = 0;
+    const MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT: [usize; 65] = Self::precompute_max_tile_height_combinations_for_block_count();
+    const fn precompute_max_tile_height_combinations_for_block_count() -> [usize; 65] {
+        let mut max_tile_height_combinations = [0; 65];
 
         let mut block_amount: usize = 0;
         while block_amount <= 64 {
@@ -702,9 +744,6 @@ impl Binary3BitGameState {
                                     }
 
                                     possible_combinations += 1;
-                                    if possible_combinations > max_tile_height_combinations {
-                                        max_tile_height_combinations = possible_combinations;
-                                    }
 
                                     player_b_height += 1;
                                 }
@@ -717,12 +756,30 @@ impl Binary3BitGameState {
                 }
                 height_4_tiles -= 1;
             }
+            max_tile_height_combinations[block_amount] = possible_combinations;
 
             block_amount += 1;
         }
 
         return max_tile_height_combinations;
     }
+
+    const MAX_TILE_HEIGHT_COMBINATIONS: usize = Self::precompute_max_tile_height_combinations();
+    const fn precompute_max_tile_height_combinations() -> usize {
+        let mut max_tile_height_combinations = 0;
+
+        let mut block_amount: usize = 0;
+        while block_amount <= 64 {
+            if Self::MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT[block_amount] > max_tile_height_combinations {
+                max_tile_height_combinations = Self::MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT[block_amount];
+            }
+
+            block_amount += 1;
+        }
+
+        return max_tile_height_combinations;
+    }
+
     pub fn get_max_tile_height_combinations() -> usize {
         return Self::MAX_TILE_HEIGHT_COMBINATIONS;
     }
@@ -731,8 +788,10 @@ impl Binary3BitGameState {
     const fn precompute_tile_height_combinations() -> [[TileHeightCombination; Self::MAX_TILE_HEIGHT_COMBINATIONS]; 65] {
         let mut tile_height_combinations = [[TileHeightCombination::new_invalid(); Self::MAX_TILE_HEIGHT_COMBINATIONS]; 65];
 
+
         let mut block_amount: usize = 0;
         while block_amount <= 64 {
+            let mut summed_state_offset = 0;
             let mut combinations_index = 0;
             let mut height_4_tiles = block_amount as isize / 4;
             while height_4_tiles >= 0 {
@@ -766,7 +825,9 @@ impl Binary3BitGameState {
                                         (height_3_tiles - if player_a_height == 3 { 1 } else { 0 } - if player_b_height == 3 { 1 } else { 0 }) as u8,
                                         (height_2_tiles - if player_a_height == 2 { 1 } else { 0 } - if player_b_height == 2 { 1 } else { 0 }) as u8,
                                         (height_1_tiles - if player_a_height == 1 { 1 } else { 0 } - if player_b_height == 1 { 1 } else { 0 }) as u8,
+                                        summed_state_offset
                                     );
+                                    summed_state_offset += tile_height_combinations[block_amount][combinations_index].possible_state_count;
                                     combinations_index += 1;
 
                                     player_b_height += 1;
@@ -820,8 +881,6 @@ impl Binary3BitGameState {
     pub fn get_continuous_block_id(self) -> u64 {
         debug_assert!(self.is_simplified());
 
-        let block_count = self.get_block_count();
-
         let position_heights = self.get_position_heights();
 
         let player_a_position = self.get_player_a_position();
@@ -829,47 +888,43 @@ impl Binary3BitGameState {
         let player_a_height = position_heights[player_a_position as usize];
         let player_b_height = position_heights[player_b_position as usize];
 
+        let mut block_count = 0;
         let mut height_counts: [u8; 5] = [0; 5];
+
+        let mut available_positions: Vec<usize> = Vec::with_capacity(14);
+
         for (position, height) in position_heights.iter().enumerate() {
+            block_count += height;
             if position == player_a_position as usize || position == player_b_position as usize {
                 continue;
             }
+            available_positions.push(position);
             height_counts[*height as usize] += 1;
         }
 
-
-        let tile_height_combinations = Self::TILE_HEIGHT_COMBINATIONS[block_count as usize];
-
-        let mut combination_id_offset = 0;
-        let mut matching_combination_option = None;
-        for combination in &tile_height_combinations {
-            if combination.player_a_height == player_a_height &&
-                combination.player_b_height == player_b_height &&
-                combination.height_4_tiles == height_counts[4] &&
-                combination.height_3_tiles == height_counts[3] &&
-                combination.height_2_tiles == height_counts[2] &&
-                combination.height_1_tiles == height_counts[1] {
-                matching_combination_option = Some(combination);
-                break;
-            }
-            combination_id_offset += combination.possible_state_count;
-        }
-        let matching_combination = matching_combination_option.expect("No matching combination found, this should not be possible");
-
-
-        let mut available_positions: Vec<usize> = (0..=15).filter(|&x| x != player_a_position as usize && x != player_b_position as usize).collect();
-        let height_counts = matching_combination.get_height_counts();
+        let combination_id_offset = *COMBINATION_OFFSET_MAP.get(&TileHeightCombinationInput {
+            player_a_height,
+            player_b_height,
+            height_4_tiles: height_counts[4],
+            height_3_tiles: height_counts[3],
+            height_2_tiles: height_counts[2],
+            height_1_tiles: height_counts[1],
+        }).expect("Combination not found, this should not be possible");
 
         let mut tile_id_offset = 0;
-        for (height_count_index, height_count) in height_counts.iter().enumerate() {
+        for height in (1..=4).rev() {
+            let height_count = height_counts[height];
             let mut tile_offset = 0;
 
-            let remaining_counts: Vec<u64> = height_counts.iter().skip(height_count_index + 1).map(|x| x.count as u64).collect();
-            let remaining_height_options = Self::get_possible_state_count_for_remaining(available_positions.len() as u64 - height_count.count as u64, remaining_counts);
+            let mut remaining_counts = Vec::new();
+            for remaining_height in 1..height {
+                remaining_counts.push(height_counts[remaining_height] as u64);
+            }
+            let remaining_height_options = Self::get_possible_state_count_for_remaining(available_positions.len() as u64 - height_count as u64, remaining_counts);
 
-            for height_count_offset in 0..height_count.count {
-                while position_heights[available_positions[tile_offset]] != height_count.height {
-                    let current_height_options_if_tile_is_chosen = get_binomial_coefficient((available_positions.len() - tile_offset - 1) as u64, (height_count.count - height_count_offset - 1) as u64);
+            for height_count_offset in 0..height_count {
+                while position_heights[available_positions[tile_offset]] as usize != height {
+                    let current_height_options_if_tile_is_chosen = get_binomial_coefficient((available_positions.len() - tile_offset - 1) as u64, (height_count - height_count_offset - 1) as u64);
                     let possible_state_count_if_tile_is_chosen = current_height_options_if_tile_is_chosen * remaining_height_options;
 
                     tile_id_offset += possible_state_count_if_tile_is_chosen;
@@ -895,18 +950,32 @@ impl Binary3BitGameState {
         return continuous_id;
     }
 
-    pub fn from_continuous_block_id(block_count: usize, mut continuous_id: u64) -> Self {
-        let tile_height_combinations = Self::TILE_HEIGHT_COMBINATIONS[block_count];
+    fn find_matching_combination(block_count: usize, continuous_id: u64) -> &'static TileHeightCombination {
+        let tile_height_combinations = &Self::TILE_HEIGHT_COMBINATIONS[block_count];
 
-        let mut matching_combination_option = None;
-        for combination in &tile_height_combinations {
-            if continuous_id < combination.possible_state_count {
-                matching_combination_option = Some(combination);
-                break;
+        let mut low = 0;
+        let mut high = Self::MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT[block_count];
+
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let mid_combination = &tile_height_combinations[mid];
+            if mid_combination.previous_summed_state_offset <= continuous_id {
+                low = mid + 1;
+            } else {
+                high = mid;
             }
-            continuous_id -= combination.possible_state_count;
         }
-        let matching_combination = matching_combination_option.expect("No matching combination found, this means that the continuous id is too high");
+
+        return if low == 0 {
+            &tile_height_combinations[0]
+        } else {
+            &tile_height_combinations[low - 1]
+        }
+    }
+
+    pub fn from_continuous_block_id(block_count: usize, mut continuous_id: u64) -> Self {
+        let matching_combination = Self::find_matching_combination(block_count, continuous_id);
+        continuous_id -= matching_combination.previous_summed_state_offset;
 
         // Found the correct combination
 

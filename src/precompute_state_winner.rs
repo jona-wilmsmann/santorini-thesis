@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 use crate::game_state::GameState;
 use anyhow::Result;
 use chrono::Local;
+use num_format::ToFormattedString;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
 use crate::precompute_state_winner::bit_vector::BitVector;
@@ -48,7 +49,7 @@ async fn combine_partial_files(file_paths: Vec<String>, output_file_path: &str) 
     writer.flush().await?;
 
     for file_path in &file_paths {
-        //tokio::fs::remove_file(file_path).await?;
+        tokio::fs::remove_file(file_path).await?;
     }
 
     return Ok(());
@@ -87,16 +88,16 @@ async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, 
     if new_percentage != previous_percentage{
         let local_time = Local::now();
         let formatted_time = local_time.format("%Y-%m-%d %H:%M:%S");
-        println!("({}) Block {} - Progress: {}%", formatted_time, block_count, new_percentage);
+        println!("({}) Block {} - Progress: {}% of {} states", formatted_time, block_count, new_percentage, total_count.to_formatted_string(&num_format::Locale::en));
     }
 }
 
-pub async fn presolve_state_winner(block_count: usize, parallel_tasks: usize) -> Result<()> {
+pub async fn presolve_state_winner(block_count: usize, parallel_tasks: usize, data_folder_path: &str) -> Result<()> {
     let continuous_block_id_count = GameState::get_continuous_block_id_count(block_count);
     let parent_continuous_block_id_count = GameState::get_continuous_block_id_count(block_count + 1);
 
     let parent_bit_vector = if parent_continuous_block_id_count != 0 {
-        let bit_vector = BitVector::from_file(&format!("winner_data/block{}_{}-{}.bin", block_count + 1, 0, parent_continuous_block_id_count - 1)).await?;
+        let bit_vector = BitVector::from_file(&format!("{}/block{}_{}-{}.bin", data_folder_path, block_count + 1, 0, parent_continuous_block_id_count - 1)).await?;
         Arc::new(bit_vector)
     } else {
         Arc::new(BitVector::new_empty())
@@ -110,7 +111,7 @@ pub async fn presolve_state_winner(block_count: usize, parallel_tasks: usize) ->
     for task_index in 0..parallel_tasks {
         let chunk_amount = get_chunk_amount(continuous_block_id_count, parallel_tasks as u64, task_index as u64);
 
-        let output_file_path = format!("winner_data/block{}_part{}.bin", block_count, task_index);
+        let output_file_path = format!("{}/block{}_part{}.bin", data_folder_path, block_count, task_index);
         output_files.push(output_file_path.clone());
 
         let parent_bit_vector = parent_bit_vector.clone();
@@ -152,7 +153,7 @@ pub async fn presolve_state_winner(block_count: usize, parallel_tasks: usize) ->
     println!("Presolved all states for block {}, combining files", block_count);
 
     if parallel_tasks != 1 {
-        combine_partial_files(output_files, &format!("winner_data/block{}_{}-{}.bin", block_count, 0, continuous_block_id_count - 1)).await?;
+        combine_partial_files(output_files, &format!("{}/block{}_{}-{}.bin", data_folder_path, block_count, 0, continuous_block_id_count - 1)).await?;
     }
 
     println!("Combined all files for block {}", block_count);

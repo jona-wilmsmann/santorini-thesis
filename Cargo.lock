@@ -717,6 +717,7 @@ dependencies = [
  "csv",
  "fnv",
  "num-format",
+ "once_cell",
  "rand",
  "tokio",
 ]
