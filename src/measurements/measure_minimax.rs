@@ -1,9 +1,9 @@
-use crate::game_state::GameState;
+use crate::game_state::{GameState, SimplifiedState, StaticEvaluation};
 use crate::measurements::minimax_measurement::MinimaxMeasurement;
 use crate::minimax::minimax;
 use crate::minimax::minimax_cache::MinimaxCache;
 
-pub fn measure_minimax(game_state: GameState, game_state_block_amount: usize, depth: usize) -> MinimaxMeasurement {
+pub fn measure_minimax<GS: GameState + StaticEvaluation + SimplifiedState>(game_state: GS, game_state_block_amount: usize, depth: usize) -> MinimaxMeasurement<GS> {
     let mut cache = MinimaxCache::new();
     let start_time = std::time::Instant::now();
     let result = minimax(&game_state, depth, f32::NEG_INFINITY, f32::INFINITY, &mut cache);

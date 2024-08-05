@@ -1,7 +1,7 @@
 use crate::game_state::GameState;
 
-pub struct MinimaxMeasurement {
-    pub game_state: GameState,
+pub struct MinimaxMeasurement<GS: GameState> {
+    pub game_state: GS,
     pub game_state_block_amount: usize,
     pub depth: usize,
     pub result: f32,

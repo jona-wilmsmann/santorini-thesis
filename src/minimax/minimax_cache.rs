@@ -10,14 +10,14 @@ pub struct Bounds {
     pub beta: f32,
 }
 
-pub struct MinimaxCache {
+pub struct MinimaxCache<GS: GameState> {
     pub evaluated_states: usize,
     pub pruned_states: usize,
-    pub valuation_bounds: [FnvHashMap<GameState, Bounds>; 63],
+    pub valuation_bounds: [FnvHashMap<GS, Bounds>; 63],
 }
 
-impl MinimaxCache {
-    pub fn new() -> MinimaxCache {
+impl<GS: GameState> MinimaxCache<GS> {
+    pub fn new() -> MinimaxCache<GS> {
         return MinimaxCache {
             evaluated_states: 0,
             pruned_states: 0,
@@ -25,11 +25,11 @@ impl MinimaxCache {
         };
     }
 
-    pub fn get_valuation_bounds(&self, depth: usize, game_state: &GameState) -> Option<&Bounds> {
+    pub fn get_valuation_bounds(&self, depth: usize, game_state: &GS) -> Option<&Bounds> {
         return self.valuation_bounds[depth].get(game_state);
     }
 
-    pub fn insert_valuation_bounds(&mut self, depth: usize, game_state: GameState, bounds: Bounds) {
+    pub fn insert_valuation_bounds(&mut self, depth: usize, game_state: GS, bounds: Bounds) {
         //self.valuation_bounds[depth].insert(game_state, bounds);
 
         // TODO: Check if this makes sense and if there are any other possible cases to cover

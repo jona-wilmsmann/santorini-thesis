@@ -3,11 +3,14 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 use anyhow::Result;
+use crate::game_state::{GameState, SimplifiedState, StaticEvaluation};
 use crate::measurements::parallelize_measurements::parallelize_measurements;
 use crate::minimax::readable_minmax_value;
 
-pub async fn create_csv_report(random_state_amount: usize, block_amounts: RangeInclusive<usize>, depths: RangeInclusive<usize>) -> Result<()> {
-    let measurements = parallelize_measurements(random_state_amount, block_amounts.clone(), depths.clone()).await;
+pub async fn create_csv_report<
+    GS: GameState + StaticEvaluation + SimplifiedState + 'static
+>(random_state_amount: usize, block_amounts: RangeInclusive<usize>, depths: RangeInclusive<usize>) -> Result<()> {
+    let measurements = parallelize_measurements::<GS>(random_state_amount, block_amounts.clone(), depths.clone()).await;
 
     let folder_path = Path::new("reports");
     if !folder_path.exists() {

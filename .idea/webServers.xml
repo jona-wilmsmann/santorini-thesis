@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="e4f27ae8-4535-4004-8d88-a4f84319f40f" name="Hetzner Large">
+        <fileTransfer rootFolder="/root" accessType="SFTP" host="37.27.114.57" port="22" sshConfigId="1ef1d808-d5ce-4e90-9644-93feb63b7d0c" sshConfig="root@37.27.114.57:22 agent" authAgent="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

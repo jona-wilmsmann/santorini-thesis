@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
-use std::iter::Map;
 use once_cell::sync::Lazy;
-use crate::game_state::generic_game_state::GenericGameState;
+use crate::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, StaticEvaluation};
+use crate::generic_game_state::generic_4x4_game_state::Generic4x4GameState;
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
 
@@ -96,33 +96,29 @@ impl Binary3BitGameState {
         return position_heights;
     }
 
-    pub fn get_block_count(self) -> u64 {
-        let mut block_count = 0;
-        let mut data = self.0;
-        for _ in 0..16 {
-            block_count += data & 0x7;
-            data >>= 3;
-        }
-        return block_count;
-    }
+}
 
-    pub fn new(binary_game_state: u64) -> Self {
+impl GameState for Binary3BitGameState {
+    type RawValue = u64;
+    type GenericGameState = Generic4x4GameState;
+
+    fn new(binary_game_state: u64) -> Self {
         return Self(binary_game_state);
     }
 
-    pub fn raw_value(self) -> u64 {
+    fn raw_value(&self) -> u64 {
         self.0
     }
 
-    pub fn has_player_a_won(self) -> bool {
+    fn has_player_a_won(&self) -> bool {
         return self.0 & (1 << 63) != 0;
     }
 
-    pub fn has_player_b_won(self) -> bool {
+    fn has_player_b_won(&self) -> bool {
         return self.0 & (1 << 62) != 0;
     }
 
-    pub fn from_generic_game_state(generic_game_state: &GenericGameState) -> Self {
+    fn from_generic_game_state(generic_game_state: &Generic4x4GameState) -> Self {
         let mut binary_game_state = 0;
         for i in 0..16 {
             let position = Self::TILE_ID_TO_POSITION[i];
@@ -144,7 +140,7 @@ impl Binary3BitGameState {
         return Self(binary_game_state);
     }
 
-    pub fn to_generic_game_state(self) -> GenericGameState {
+    fn to_generic_game_state(self) -> Generic4x4GameState {
         let position_heights = self.get_position_heights();
         let mut tile_heights = [0; 16];
         for i in 0..16 {
@@ -154,10 +150,10 @@ impl Binary3BitGameState {
         // Convert position to tile
         let player_a_tile = Self::POSITION_TO_TILE_ID[self.get_player_a_position() as usize] as u8;
         let player_b_tile = Self::POSITION_TO_TILE_ID[self.get_player_b_position() as usize] as u8;
-        return GenericGameState::new(player_a_tile, player_b_tile, tile_heights).expect("Invalid game state");
+        return Generic4x4GameState::new(player_a_tile, player_b_tile, tile_heights).expect("Invalid game state");
     }
 
-    pub fn get_children_states(self) -> Vec<Self> {
+    fn get_children_states(self) -> Vec<Self> {
         let mut possible_next_states = Vec::new();
 
         let player_a_position = self.get_player_a_position() as usize;
@@ -210,7 +206,7 @@ impl Binary3BitGameState {
         return possible_next_states;
     }
 
-    pub fn get_flipped_state(self) -> Self {
+    fn get_flipped_state(&self) -> Self {
         let mut flipped_state = self.0;
         let player_a_position = self.get_player_a_position();
         let player_b_position = self.get_player_b_position();
@@ -275,8 +271,10 @@ impl Binary3BitGameState {
 
         return position_to_position_to_height_to_height_to_valuation;
     }
+}
 
-    pub fn static_evaluation(self) -> f32 {
+impl StaticEvaluation for Binary3BitGameState {
+    fn get_static_evaluation(&self) -> f32 {
         if self.has_player_a_won() {
             return f32::MAX;
         } else if self.has_player_b_won() {
@@ -387,8 +385,10 @@ impl Binary3BitGameState {
 
         return player_a_pos_player_b_pos_to_mirror_type;
     }
+}
 
-    pub fn get_symmetric_simplified_state(&self) -> Self {
+impl SimplifiedState for Binary3BitGameState {
+    fn get_simplified_state(&self) -> Self {
         let height_information = self.0 & 0xFFFFFFFFFFFF;
         let status_information = self.0 & (0xFF << 56);
         let player_a_position = self.get_player_a_position();
@@ -428,6 +428,27 @@ impl Binary3BitGameState {
         let new_state = new_height_information | (new_player_a_position << 48) | (new_player_b_position << 52) | status_information;
 
         return Self(new_state);
+    }
+
+    fn is_simplified(&self) -> bool {
+        let player_a_position = self.get_player_a_position() as usize;
+        let player_b_position = self.get_player_b_position() as usize;
+
+        if self.has_player_a_won() || self.has_player_b_won() {
+            return false;
+        }
+
+        for combination in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
+            if player_a_position == combination.player_a_position {
+                for i in 0..combination.player_b_options {
+                    if player_b_position == combination.player_b_positions[i] {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+        return false;
     }
 }
 
@@ -494,8 +515,10 @@ impl Binary3BitGameState {
         }
         return summed_possible_simplified_state_options;
     }
+}
 
-    pub fn get_continuous_id_count() -> u64 {
+impl ContinuousId for Binary3BitGameState {
+    fn get_continuous_id_count() -> u64 {
         let mut continuous_id_count = 0;
 
         for variant in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
@@ -505,28 +528,7 @@ impl Binary3BitGameState {
         return continuous_id_count;
     }
 
-    pub fn is_simplified(&self) -> bool {
-        let player_a_position = self.get_player_a_position() as usize;
-        let player_b_position = self.get_player_b_position() as usize;
-
-        if self.has_player_a_won() || self.has_player_b_won() {
-            return false;
-        }
-
-        for combination in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
-            if player_a_position == combination.player_a_position {
-                for i in 0..combination.player_b_options {
-                    if player_b_position == combination.player_b_positions[i] {
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
-        return false;
-    }
-
-    pub fn get_continuous_id(&self) -> u64 {
+    fn get_continuous_id(&self) -> u64 {
         let player_a_position = self.get_player_a_position();
         let player_b_position = self.get_player_b_position();
 
@@ -564,7 +566,7 @@ impl Binary3BitGameState {
         return continuous_id;
     }
 
-    pub fn from_continuous_id(mut continuous_id: u64) -> Self {
+    fn from_continuous_id(mut continuous_id: u64) -> Self {
         let mut matching_variant_option = None;
         for variant in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
             if continuous_id < variant.total_possible_states {
@@ -687,7 +689,7 @@ impl TileHeightCombination {
 
 static COMBINATION_OFFSET_MAP: Lazy<HashMap<TileHeightCombinationInput, u64>> = Lazy::new(|| get_combination_offset_map());
 
-pub fn get_combination_offset_map() -> HashMap<TileHeightCombinationInput, u64> {
+fn get_combination_offset_map() -> HashMap<TileHeightCombinationInput, u64> {
     let mut combination_offset_map = HashMap::new();
 
     for block_count in 0..=64 {
@@ -780,10 +782,6 @@ impl Binary3BitGameState {
         return max_tile_height_combinations;
     }
 
-    pub fn get_max_tile_height_combinations() -> usize {
-        return Self::MAX_TILE_HEIGHT_COMBINATIONS;
-    }
-
     const TILE_HEIGHT_COMBINATIONS: [[TileHeightCombination; Self::MAX_TILE_HEIGHT_COMBINATIONS]; 65] = Self::precompute_tile_height_combinations();
     const fn precompute_tile_height_combinations() -> [[TileHeightCombination; Self::MAX_TILE_HEIGHT_COMBINATIONS]; 65] {
         let mut tile_height_combinations = [[TileHeightCombination::new_invalid(); Self::MAX_TILE_HEIGHT_COMBINATIONS]; 65];
@@ -848,7 +846,55 @@ impl Binary3BitGameState {
         return tile_height_combinations;
     }
 
-    pub fn get_continuous_block_id_count(block_count: usize) -> u64 {
+    fn get_possible_state_count_for_remaining(mut remaining_tiles: u64, remaining_counts: Vec<u64>) -> u64 {
+        debug_assert!(remaining_tiles >= remaining_counts.iter().sum());
+
+        let mut possible_state_count = 1;
+
+        for remaining_count in remaining_counts {
+            possible_state_count *= get_binomial_coefficient(remaining_tiles, remaining_count);
+            remaining_tiles -= remaining_count;
+        }
+
+        return possible_state_count;
+    }
+
+    fn find_matching_combination(block_count: usize, continuous_id: u64) -> &'static TileHeightCombination {
+        let tile_height_combinations = &Self::TILE_HEIGHT_COMBINATIONS[block_count];
+
+        let mut low = 0;
+        let mut high = Self::MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT[block_count];
+
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let mid_combination = &tile_height_combinations[mid];
+            if mid_combination.previous_summed_state_offset <= continuous_id {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+
+        return if low == 0 {
+            &tile_height_combinations[0]
+        } else {
+            &tile_height_combinations[low - 1]
+        }
+    }
+}
+
+impl ContinuousBlockId for Binary3BitGameState {
+    fn get_block_count(&self) -> u64 {
+        let mut block_count = 0;
+        let mut data = self.0;
+        for _ in 0..16 {
+            block_count += data & 0x7;
+            data >>= 3;
+        }
+        return block_count;
+    }
+
+    fn get_continuous_block_id_count(block_count: usize) -> u64 {
         if block_count > Self::TILE_HEIGHT_COMBINATIONS.len() {
             return 0;
         }
@@ -864,21 +910,7 @@ impl Binary3BitGameState {
         return continuous_block_id_count;
     }
 
-    fn get_possible_state_count_for_remaining(mut remaining_tiles: u64, remaining_counts: Vec<u64>) -> u64 {
-        debug_assert!(remaining_tiles >= remaining_counts.iter().sum());
-
-        let mut possible_state_count = 1;
-
-        for remaining_count in remaining_counts {
-            possible_state_count *= get_binomial_coefficient(remaining_tiles, remaining_count);
-            remaining_tiles -= remaining_count;
-        }
-
-        return possible_state_count;
-    }
-
-
-    pub fn get_continuous_block_id(self) -> u64 {
+    fn get_continuous_block_id(&self) -> u64 {
         debug_assert!(self.is_simplified());
 
         let position_heights = self.get_position_heights();
@@ -950,30 +982,7 @@ impl Binary3BitGameState {
         return continuous_id;
     }
 
-    fn find_matching_combination(block_count: usize, continuous_id: u64) -> &'static TileHeightCombination {
-        let tile_height_combinations = &Self::TILE_HEIGHT_COMBINATIONS[block_count];
-
-        let mut low = 0;
-        let mut high = Self::MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT[block_count];
-
-        while low < high {
-            let mid = low + (high - low) / 2;
-            let mid_combination = &tile_height_combinations[mid];
-            if mid_combination.previous_summed_state_offset <= continuous_id {
-                low = mid + 1;
-            } else {
-                high = mid;
-            }
-        }
-
-        return if low == 0 {
-            &tile_height_combinations[0]
-        } else {
-            &tile_height_combinations[low - 1]
-        }
-    }
-
-    pub fn from_continuous_block_id(block_count: usize, mut continuous_id: u64) -> Self {
+    fn from_continuous_block_id(block_count: usize, mut continuous_id: u64) -> Self {
         let matching_combination = Self::find_matching_combination(block_count, continuous_id);
         continuous_id -= matching_combination.previous_summed_state_offset;
 

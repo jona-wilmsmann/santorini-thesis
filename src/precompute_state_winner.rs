@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use crate::game_state::GameState;
+use crate::game_state::{ContinuousBlockId, GameState, SimplifiedState};
 use anyhow::Result;
 use chrono::Local;
 use num_format::ToFormattedString;
@@ -39,7 +39,7 @@ async fn combine_partial_files(file_paths: Vec<String>, output_file_path: &str) 
     let mut file_index = 0;
     loop {
         let mut buffer = [0; CHUNK_SIZE_BYTES as usize];
-        let mut bytes_read = files[file_index].read(&mut buffer).await?;
+        let bytes_read = files[file_index].read(&mut buffer).await?;
         if bytes_read == 0 {
             break;
         }
@@ -55,7 +55,7 @@ async fn combine_partial_files(file_paths: Vec<String>, output_file_path: &str) 
     return Ok(());
 }
 
-fn presolve_state(state: &GameState, parent_bit_vector: &Arc<BitVector>) -> bool {
+fn presolve_state<GS: GameState + SimplifiedState + ContinuousBlockId>(state: &GS, parent_bit_vector: &Arc<BitVector>) -> bool {
     let child_states = state.get_children_states();
 
     if child_states.is_empty() {
@@ -68,7 +68,7 @@ fn presolve_state(state: &GameState, parent_bit_vector: &Arc<BitVector>) -> bool
             return true;
         }
         let flipped_child_state = child_state.get_flipped_state();
-        let simplified_flipped_child_state = flipped_child_state.get_symmetric_simplified_state();
+        let simplified_flipped_child_state = flipped_child_state.get_simplified_state();
         let child_continuous_block_id = simplified_flipped_child_state.get_continuous_block_id();
         if !parent_bit_vector.get(child_continuous_block_id as usize) {
             return true;
@@ -92,9 +92,11 @@ async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, 
     }
 }
 
-pub async fn presolve_state_winner(block_count: usize, parallel_tasks: usize, data_folder_path: &str) -> Result<()> {
-    let continuous_block_id_count = GameState::get_continuous_block_id_count(block_count);
-    let parent_continuous_block_id_count = GameState::get_continuous_block_id_count(block_count + 1);
+pub async fn presolve_state_winner<
+    GS: GameState + SimplifiedState + ContinuousBlockId
+>(block_count: usize, parallel_tasks: usize, data_folder_path: &str) -> Result<()> {
+    let continuous_block_id_count = GS::get_continuous_block_id_count(block_count);
+    let parent_continuous_block_id_count = GS::get_continuous_block_id_count(block_count + 1);
 
     let parent_bit_vector = if parent_continuous_block_id_count != 0 {
         let bit_vector = BitVector::from_file(&format!("{}/block{}_{}-{}.bin", data_folder_path, block_count + 1, 0, parent_continuous_block_id_count - 1)).await?;
@@ -128,7 +130,7 @@ pub async fn presolve_state_winner(block_count: usize, parallel_tasks: usize, da
                 let id_end = ((global_chunk_index + 1) * CHUNK_SIZE_BYTES * 8).min(continuous_block_id_count);
 
                 for continuous_block_id in id_start..id_end {
-                    let state = GameState::from_continuous_block_id(block_count, continuous_block_id);
+                    let state = GS::from_continuous_block_id(block_count, continuous_block_id);
                     let winner = presolve_state(&state, &parent_bit_vector);
                     bit_writer.write_bit(winner).await?;
 

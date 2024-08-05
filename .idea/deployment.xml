@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" serverName="Hetzner Large" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="Hetzner Large">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/santorini-minimax" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/winner_data" />
+            <excludedPath local="true" path="$PROJECT_DIR$/reports" />
+            <excludedPath local="true" path="$PROJECT_DIR$/target" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>

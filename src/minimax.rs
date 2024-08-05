@@ -2,7 +2,7 @@ pub mod minimax_cache;
 
 use std::time::Duration;
 use num_format::{Locale, ToFormattedString};
-use crate::game_state::GameState;
+use crate::game_state::{GameState, SimplifiedState, StaticEvaluation};
 use crate::minimax::minimax_cache::{Bounds, MinimaxCache};
 
 pub fn readable_minmax_value(value: f32) -> String {
@@ -19,8 +19,8 @@ pub fn readable_minmax_value(value: f32) -> String {
 }
 
 // Allows for flexibly adding caching if needed
-fn get_static_evaluation(game_state: &GameState, _cache: &mut MinimaxCache) -> f32 {
-    return game_state.static_evaluation();
+fn get_static_evaluation<GS: GameState + StaticEvaluation>(game_state: &GS, _cache: &mut MinimaxCache<GS>) -> f32 {
+    return game_state.get_static_evaluation();
 
     /*
     if let Some(cached_value) = cache.valuations[0].get(game_state) {
@@ -32,10 +32,10 @@ fn get_static_evaluation(game_state: &GameState, _cache: &mut MinimaxCache) -> f
     */
 }
 
-fn sort_children_states(children_states: &mut Vec<GameState>, depth: usize, cache: &mut MinimaxCache) {
+fn sort_children_states<GS: GameState + StaticEvaluation>(children_states: &mut Vec<GS>, depth: usize, cache: &mut MinimaxCache<GS>) {
     if depth > 2 {
         // Create a vector of tuples with the static evaluation and the GameState
-        let mut children_evaluations: Vec<(GameState, f32)> = children_states.iter().map(|state| (state.clone(), get_static_evaluation(state, cache))).collect();
+        let mut children_evaluations: Vec<(GS, f32)> = children_states.iter().map(|state| (state.clone(), get_static_evaluation(state, cache))).collect();
         // Sort the vector by the static evaluation
         children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         // Replace the children_states vector with the sorted vector
@@ -43,7 +43,7 @@ fn sort_children_states(children_states: &mut Vec<GameState>, depth: usize, cach
     }
 }
 
-pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, cache: &mut MinimaxCache) -> f32 {
+pub fn minimax<GS: GameState + StaticEvaluation + SimplifiedState>(game_state: &GS, depth: usize, mut alpha: f32, beta: f32, cache: &mut MinimaxCache<GS>) -> f32 {
     cache.evaluated_states += 1;
 
     if depth == 0 {
@@ -59,7 +59,7 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
 
     let mut children_states = game_state.get_children_states();
     // TODO: This speeds things up for some states, but makes things slower for others. Think of ways to detect when to use it
-    children_states = children_states.iter().map(|child| child.get_symmetric_simplified_state()).collect();
+    children_states = children_states.iter().map(|child| child.get_simplified_state()).collect();
     sort_children_states(&mut children_states, depth, cache);
 
     if children_states.len() == 0 {
@@ -115,7 +115,7 @@ pub fn minimax(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, 
 }
 
 
-pub fn increasing_depth_minimax(game_state: &GameState, max_depth: usize, cutoff_time: Duration, cache: &mut MinimaxCache) -> f32 {
+pub fn increasing_depth_minimax<GS: GameState + StaticEvaluation + SimplifiedState>(game_state: &GS, max_depth: usize, cutoff_time: Duration, cache: &mut MinimaxCache<GS>) -> f32 {
     let start = std::time::Instant::now();
     let mut value = 0.0;
     let mut reached_depth = 0;
@@ -150,7 +150,7 @@ fn move_f32_closer_to_zero(value: f32) -> f32 {
     return f32::from_bits(int_value);
 }
 
-pub fn minimax_with_moves(game_state: &GameState, depth: usize, mut alpha: f32, beta: f32, cache: &mut MinimaxCache) -> (f32, Vec<GameState>) {
+pub fn minimax_with_moves<GS: GameState + StaticEvaluation + SimplifiedState>(game_state: &GS, depth: usize, mut alpha: f32, beta: f32, cache: &mut MinimaxCache<GS>) -> (f32, Vec<GS>) {
     let mut game_state_path = vec![game_state.clone()];
     cache.evaluated_states += 1;
 

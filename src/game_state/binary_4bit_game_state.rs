@@ -1,6 +1,8 @@
 use std::fmt;
 use std::fmt::Formatter;
-use crate::game_state::generic_game_state::GenericGameState;
+use crate::game_state::GameState;
+use crate::generic_game_state::generic_4x4_game_state::Generic4x4GameState;
+
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 
 /*
@@ -13,7 +15,7 @@ For each tile:
 - Special case: Height 4 is represented as bits 0-2 being 111, in which case no opponent is present
 - This is acceptable because the opponent being on a tile with height 3 means that the opponent already won
  */
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub struct Binary4BitGameState(u64);
 
 impl fmt::Display for Binary4BitGameState {
@@ -68,13 +70,32 @@ impl Binary4BitGameState {
 
     const PLAYER_A_MASK: u64 = 0x8888888888888888;
     const PLAYER_B_MASK: u64 = 0x4444444444444444;
+}
 
-    pub fn new(value: u64) -> Self {
+impl GameState for Binary4BitGameState {
+    type RawValue = u64;
+    type GenericGameState = Generic4x4GameState;
+
+    fn new(value: u64) -> Self {
         Self(value)
     }
 
+    fn raw_value(&self) -> u64 {
+        self.0
+    }
 
-    pub fn from_generic_game_state(generic_game_state: &GenericGameState) -> Self {
+    fn has_player_a_won(&self) -> bool {
+        // TODO: The 4bit game state does not have a proper encoding for win conditions
+        panic!("Not implemented");
+    }
+
+    fn has_player_b_won(&self) -> bool {
+        // TODO: The 4bit game state does not have a proper encoding for win conditions
+        panic!("Not implemented");
+    }
+
+
+    fn from_generic_game_state(generic_game_state: &Generic4x4GameState) -> Self {
         let mut binary_game_state = 0;
 
         for i in 0..16 {
@@ -89,7 +110,7 @@ impl Binary4BitGameState {
         return Self(binary_game_state);
     }
 
-    pub fn to_generic_game_state(self) -> GenericGameState {
+    fn to_generic_game_state(self) -> Generic4x4GameState {
         let mut tile_heights = [0; 16];
         let mut player_a_tile = 0;
         let mut player_b_tile = 0;
@@ -103,10 +124,10 @@ impl Binary4BitGameState {
                 player_b_tile = i as u8;
             }
         }
-        return GenericGameState::new(player_a_tile, player_b_tile, tile_heights).expect("Invalid game state");
+        return Generic4x4GameState::new(player_a_tile, player_b_tile, tile_heights).expect("Invalid game state");
     }
 
-    pub fn get_children_states(self) -> Vec<Self> {
+    fn get_children_states(self) -> Vec<Self> {
         let mut possible_next_states = Vec::new();
 
         let player_a_bit = self.0 & Self::PLAYER_A_MASK;
@@ -177,7 +198,7 @@ impl Binary4BitGameState {
         return possible_next_states;
     }
 
-    pub fn get_flipped_state(self) -> Self {
+    fn get_flipped_state(&self) -> Self {
         let player_a_bit = self.0 & Self::PLAYER_A_MASK;
 
         const PLAYER_B_HEIGHT_MASK: u64 = 0x3333333333333333;

@@ -2,16 +2,16 @@
 mod tests {
     use crate::game_state::binary_3bit_game_state::Binary3BitGameState;
     use crate::game_state::binary_4bit_game_state::Binary4BitGameState;
-    use crate::game_state::generic_game_state::GenericGameState;
-    use crate::game_state::utils::random_state_generation::generate_random_state;
+    use crate::game_state::generic_game_state::Generic4x4GameState;
+    use crate::game_state::utils::random_state_generation::generate_random_4x4_state;
 
     fn find_discrepancies(tries: usize) {
         for _ in 0..tries {
-            let random_state = generate_random_state();
+            let random_state = generate_random_4x4_state();
             let binary_3b_state = Binary3BitGameState::from_generic_game_state(&random_state);
             let binary_4b_state = Binary4BitGameState::from_generic_game_state(&random_state);
-            let mut next_states_3b = binary_3b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericGameState>>();
-            let mut next_states_4b = binary_4b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericGameState>>();
+            let mut next_states_3b = binary_3b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<Generic4x4GameState>>();
+            let mut next_states_4b = binary_4b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<Generic4x4GameState>>();
             next_states_3b.sort();
             next_states_4b.sort();
 
@@ -21,7 +21,7 @@ mod tests {
 
     fn find_flip_discrepancies(tries: usize) {
         for _ in 0..tries {
-            let random_state = generate_random_state();
+            let random_state = generate_random_4x4_state();
             let binary_3b_state = Binary3BitGameState::from_generic_game_state(&random_state);
             let binary_4b_state = Binary4BitGameState::from_generic_game_state(&random_state);
 
