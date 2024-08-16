@@ -1,16 +1,16 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, StaticEvaluation};
 use rand::{Rng, SeedableRng};
-use santorini_minimax::game_state::binary_3bit_game_state::Binary3BitGameState;
-use santorini_minimax::generic_game_state::generic_4x4_game_state::Generic4x4GameState;
+use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
+use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use santorini_minimax::generic_game_state::GenericGameState;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut rng = rand::rngs::StdRng::seed_from_u64(0);
 
-    let random_states: Vec<Binary3BitGameState> = (0..1000000).map(|_| Binary3BitGameState::from_generic_game_state(&Generic4x4GameState::generate_random_state())).collect();
-    let random_simplified_states: Vec<Binary3BitGameState> = random_states.iter().map(|state| state.get_simplified_state()).collect();
-    let random_continuous_ids: Vec<u64> = (0..1000000).map(|_| rng.gen_range(0..Binary3BitGameState::get_continuous_id_count())).collect();
+    let random_states: Vec<GameState4x4Binary3Bit> = (0..1000000).map(|_| GameState4x4Binary3Bit::from_generic_game_state(&GenericSantoriniGameState::<4, 4, 1>::generate_random_state())).collect();
+    let random_simplified_states: Vec<GameState4x4Binary3Bit> = random_states.iter().map(|state| state.get_simplified_state()).collect();
+    let random_continuous_ids: Vec<u64> = (0..1000000).map(|_| rng.gen_range(0..GameState4x4Binary3Bit::get_continuous_id_count())).collect();
     let random_continuous_block_ids: Vec<(u64, u64)> = random_simplified_states.iter().map(|state| (state.get_block_count(), state.get_continuous_block_id())).collect();
 
     let mut group = c.benchmark_group("GameState Benchmarks");
@@ -51,7 +51,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("generate 1,000,000 states from continuous id", |b| b.iter(|| {
         for continuous_id in &random_continuous_ids {
-            black_box(Binary3BitGameState::from_continuous_id(continuous_id.clone()));
+            black_box(GameState4x4Binary3Bit::from_continuous_id(continuous_id.clone()));
         }
     }));
 
@@ -63,7 +63,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("generate 1,000,000 states from continuous block id", |b| b.iter(|| {
         for (block_count, continuous_block_id) in &random_continuous_block_ids {
-            black_box(Binary3BitGameState::from_continuous_block_id(*block_count as usize, *continuous_block_id));
+            black_box(GameState4x4Binary3Bit::from_continuous_block_id(*block_count as usize, *continuous_block_id));
         }
     }));
 

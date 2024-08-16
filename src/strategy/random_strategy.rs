@@ -15,7 +15,7 @@ impl<GGS: GenericGameState> RandomStrategy<GGS> {
 impl<GGS: GenericGameState> Strategy for RandomStrategy<GGS> {
     type GenericGameState = GGS;
 
-    fn choose_move(&mut self, current_state: GGS, possible_next_states: Vec<GGS>) -> usize {
+    fn choose_move(&mut self, _current_state: &GGS, possible_next_states: &Vec<GGS>) -> usize {
         let mut rng = rand::thread_rng();
         let index = rng.gen_range(0..possible_next_states.len());
         return index;

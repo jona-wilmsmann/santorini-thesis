@@ -1,9 +1,9 @@
 use std::fmt;
 use std::fmt::Formatter;
 use crate::game_state::GameState;
-use crate::generic_game_state::generic_4x4_game_state::Generic4x4GameState;
 
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
+use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 
 /*
 Bits 0-63: 4 bits per tile, 16 tiles
@@ -16,15 +16,15 @@ For each tile:
 - This is acceptable because the opponent being on a tile with height 3 means that the opponent already won
  */
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]
-pub struct Binary4BitGameState(u64);
+pub struct GameState4x4Binary4Bit(u64);
 
-impl fmt::Display for Binary4BitGameState {
+impl fmt::Display for GameState4x4Binary4Bit {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         return self.to_generic_game_state().fmt(f);
     }
 }
 
-impl Binary4BitGameState {
+impl GameState4x4Binary4Bit {
     /*
     12 10 9  8
     13 15 11 6
@@ -72,9 +72,9 @@ impl Binary4BitGameState {
     const PLAYER_B_MASK: u64 = 0x4444444444444444;
 }
 
-impl GameState for Binary4BitGameState {
+impl GameState for GameState4x4Binary4Bit {
     type RawValue = u64;
-    type GenericGameState = Generic4x4GameState;
+    type GenericGameState = GenericSantoriniGameState<4, 4, 1>;
 
     fn new(value: u64) -> Self {
         Self(value)
@@ -95,14 +95,14 @@ impl GameState for Binary4BitGameState {
     }
 
 
-    fn from_generic_game_state(generic_game_state: &Generic4x4GameState) -> Self {
+    fn from_generic_game_state(generic_game_state: &GenericSantoriniGameState<4, 4, 1>) -> Self {
         let mut binary_game_state = 0;
 
         for i in 0..16 {
             let position = Self::TILE_ID_TO_POSITION[i];
-            let height = if generic_game_state.tile_heights[i] == 4 { 7 } else { generic_game_state.tile_heights[i] };
-            let player_present = generic_game_state.player_a_tile as usize == i;
-            let opponent_present = generic_game_state.player_b_tile as usize == i;
+            let height = if generic_game_state.tile_heights[i / 4][i % 4] == 4 { 7 } else { generic_game_state.tile_heights[i / 4][i % 4] };
+            let player_present = generic_game_state.player_a_pieces[0] as usize == i;
+            let opponent_present = generic_game_state.player_b_pieces[0] as usize == i;
             let info = (height as u64) | (player_present as u64) << 3 | (opponent_present as u64) << 2;
             binary_game_state |= info << (position * 4);
         }
@@ -110,21 +110,22 @@ impl GameState for Binary4BitGameState {
         return Self(binary_game_state);
     }
 
-    fn to_generic_game_state(self) -> Generic4x4GameState {
-        let mut tile_heights = [0; 16];
+    fn to_generic_game_state(self) -> GenericSantoriniGameState<4, 4, 1> {
+        let mut tile_heights = [[0; 4]; 4];
         let mut player_a_tile = 0;
         let mut player_b_tile = 0;
         for i in 0..16 {
             let position = Self::TILE_ID_TO_POSITION[i];
             let info = (self.0 >> (position * 4)) & 0xF;
-            tile_heights[i] = if info & 0x7 == 7 { 4 } else { (info & 0x3) as u8 };
+            tile_heights[i / 4][i % 4] = if info & 0x7 == 7 { 4 } else { (info & 0x3) as u8 };
             if info & 0x8 != 0 {
                 player_a_tile = i as u8;
             } else if info & 0x4 != 0 && info & 0x7 != 7 {
                 player_b_tile = i as u8;
             }
         }
-        return Generic4x4GameState::new(player_a_tile, player_b_tile, tile_heights).expect("Invalid game state");
+        //TODO: Encoding for player_a_turn
+        return GenericSantoriniGameState::<4, 4, 1>::new([player_a_tile], [player_b_tile], tile_heights, true).expect("Invalid game state");
     }
 
     fn get_children_states(self) -> Vec<Self> {

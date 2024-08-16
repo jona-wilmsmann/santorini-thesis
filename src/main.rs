@@ -5,8 +5,8 @@
 use std::time::{Duration, Instant};
 use num_format::{Locale, ToFormattedString};
 use santorini_minimax::game_state::{ContinuousBlockId, GameState, SimplifiedState, StaticEvaluation};
-use santorini_minimax::game_state::binary_3bit_game_state::Binary3BitGameState;
-use santorini_minimax::generic_game_state::generic_4x4_game_state::Generic4x4GameState;
+use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
+use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use santorini_minimax::minimax::minimax_cache::MinimaxCache;
 use santorini_minimax::minimax::{minimax, minimax_with_moves, readable_minmax_value};
 use santorini_minimax::play_game::play_game;
@@ -35,12 +35,12 @@ fn measure_minimax_and_log_moves<GS: GameState + StaticEvaluation + SimplifiedSt
 
 #[tokio::main]
 async fn main() {
-    type GS = Binary3BitGameState;
+    type GS = GameState4x4Binary3Bit;
 
-    let mut console_input_strategy = ConsoleInputStrategy::<Generic4x4GameState>::new();
-    let mut random_strategy = RandomStrategy::<Generic4x4GameState>::new();
+    let mut console_input_strategy = ConsoleInputStrategy::<GenericSantoriniGameState<4, 4, 1>>::new();
+    let mut random_strategy = RandomStrategy::<GenericSantoriniGameState<4, 4, 1>>::new();
 
-    let generic_game_state = Generic4x4GameState::new(0, 10, [0,0,0,4,0,0,0,4,0,0,0,4,4,4,4,4]).unwrap();
+    let generic_game_state = GenericSantoriniGameState::<4, 4, 1>::new([0], [10], [[0, 0, 0, 4], [0, 0, 0, 4], [0, 0, 0, 4], [4, 4, 4, 4]], true).unwrap();
     let game_state = GS::from_generic_game_state(&generic_game_state);
 
     let result = play_game(&mut console_input_strategy, &mut random_strategy, game_state);

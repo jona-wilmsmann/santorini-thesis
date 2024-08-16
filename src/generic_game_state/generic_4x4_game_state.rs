@@ -5,12 +5,14 @@ use rand::Rng;
 use crate::generic_game_state::GenericGameState;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd)]
+#[deprecated] // In favor of GenericSantoriniGameState<4, 4, 1>
 pub struct Generic4x4GameState {
     pub player_a_tile: u8,
     pub player_b_tile: u8,
     pub tile_heights: [u8; 16],
 }
 
+#[allow(deprecated)]
 impl fmt::Display for Generic4x4GameState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for row in (0..4).rev() {
@@ -34,12 +36,14 @@ impl fmt::Display for Generic4x4GameState {
     }
 }
 
+#[allow(deprecated)]
 impl fmt::Debug for Generic4x4GameState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
     }
 }
 
+#[allow(deprecated)]
 impl Generic4x4GameState {
     pub fn new(player_a_tile: u8, player_b_tile: u8, tile_heights: [u8; 16]) -> Result<Generic4x4GameState> {
         for i in 0..16 {
@@ -57,6 +61,7 @@ impl Generic4x4GameState {
     }
 }
 
+#[allow(deprecated)]
 impl GenericGameState for Generic4x4GameState {
     fn generate_random_state() -> Generic4x4GameState {
         let mut tile_heights = [0; 16];

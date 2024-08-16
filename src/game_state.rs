@@ -38,10 +38,8 @@ pub trait ContinuousBlockId {
 }
 
 #[allow(dead_code)]
-pub mod binary_4bit_game_state;
-pub mod binary_3bit_game_state;
+pub mod game_state_4x4_binary_4bit;
+pub mod game_state_4x4_binary_3bit;
 pub mod utils;
 
 mod game_state_tests;
-
-// pub type GameState = binary_3bit_game_state::Binary3BitGameState;

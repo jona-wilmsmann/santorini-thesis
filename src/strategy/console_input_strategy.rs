@@ -34,7 +34,7 @@ impl<GGS: GenericGameState> ConsoleInputStrategy<GGS> {
 impl<GGS: GenericGameState> Strategy for ConsoleInputStrategy<GGS> {
     type GenericGameState = GGS;
 
-    fn choose_move(&mut self, current_state: GGS, possible_next_states: Vec<GGS>) -> usize {
+    fn choose_move(&mut self, current_state: &GGS, possible_next_states: &Vec<GGS>) -> usize {
         println!("Current state:\n{}", current_state);
         println!("Possible next states:");
         for (i, state) in possible_next_states.iter().enumerate() {

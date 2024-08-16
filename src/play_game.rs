@@ -1,5 +1,4 @@
 use crate::game_state::GameState;
-use crate::generic_game_state::GenericGameState;
 use crate::strategy::Strategy;
 
 // Returns true if player 1 wins, false if player 2 wins
@@ -26,9 +25,9 @@ pub fn play_game<
         }
 
         let chosen_move = if player_1s_turn {
-            player_1_strategy.choose_move(current_game_state.to_generic_game_state(), possible_next_states.iter().map(|state| state.to_generic_game_state()).collect())
+            player_1_strategy.choose_move(&current_game_state.to_generic_game_state(), &possible_next_states.iter().map(|state| state.to_generic_game_state()).collect())
         } else {
-            player_2_strategy.choose_move(current_game_state.to_generic_game_state(), possible_next_states.iter().map(|state| state.to_generic_game_state()).collect())
+            player_2_strategy.choose_move(&current_game_state.to_generic_game_state(), &possible_next_states.iter().map(|state| state.to_generic_game_state()).collect())
         };
 
         current_game_state = possible_next_states[chosen_move].clone().get_flipped_state();

@@ -4,3 +4,4 @@ pub trait GenericGameState : std::fmt::Display + std::fmt::Debug {
 }
 
 pub mod generic_4x4_game_state;
+pub mod generic_santorini_game_state;

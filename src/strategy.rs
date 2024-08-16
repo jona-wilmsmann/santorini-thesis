@@ -3,7 +3,7 @@ use crate::generic_game_state::GenericGameState;
 pub trait Strategy {
     type GenericGameState: GenericGameState;
 
-    fn choose_move(&mut self, current_state: Self::GenericGameState, possible_next_states: Vec<Self::GenericGameState>) -> usize;
+    fn choose_move(&mut self, current_state: &Self::GenericGameState, possible_next_states: &Vec<Self::GenericGameState>) -> usize;
 
     fn clear_cache(&mut self);
 }

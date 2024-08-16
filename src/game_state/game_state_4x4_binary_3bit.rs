@@ -3,15 +3,16 @@ use std::fmt;
 use std::fmt::Formatter;
 use once_cell::sync::Lazy;
 use crate::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, StaticEvaluation};
-use crate::generic_game_state::generic_4x4_game_state::Generic4x4GameState;
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
+use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 
 /*
 Bits 0-47: 3 bits per tile, 16 tiles
 Bits 48-51: Player A position
 Bits 52-55: Player B position
-Bits 56-61: Unused
+Bits 56-60: Unused
+Bit 61: Player A's turn (bool)
 Bit 62: Player B has won (because they have reached height 3)
 Bit 63: Player A has won (because they have reached height 3)
 
@@ -19,15 +20,15 @@ For each tile:
 - Bits 0-2: Height (0-4)
  */
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]
-pub struct Binary3BitGameState(u64);
+pub struct GameState4x4Binary3Bit(u64);
 
-impl fmt::Display for Binary3BitGameState {
+impl fmt::Display for GameState4x4Binary3Bit {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         return self.to_generic_game_state().fmt(f);
     }
 }
 
-impl Binary3BitGameState {
+impl GameState4x4Binary3Bit {
     /*
     12 10 9  8
     13 15 11 6
@@ -96,11 +97,14 @@ impl Binary3BitGameState {
         return position_heights;
     }
 
+    fn is_player_a_turn(self) -> bool {
+        return self.0 & (1 << 61) != 0;
+    }
 }
 
-impl GameState for Binary3BitGameState {
+impl GameState for GameState4x4Binary3Bit {
     type RawValue = u64;
-    type GenericGameState = Generic4x4GameState;
+    type GenericGameState = GenericSantoriniGameState<4, 4, 1>;
 
     fn new(binary_game_state: u64) -> Self {
         return Self(binary_game_state);
@@ -118,60 +122,89 @@ impl GameState for Binary3BitGameState {
         return self.0 & (1 << 62) != 0;
     }
 
-    fn from_generic_game_state(generic_game_state: &Generic4x4GameState) -> Self {
+    fn from_generic_game_state(generic_game_state: &GenericSantoriniGameState<4, 4, 1>) -> Self {
         let mut binary_game_state = 0;
         for i in 0..16 {
             let position = Self::TILE_ID_TO_POSITION[i];
-            let height = generic_game_state.tile_heights[i];
+            let height = generic_game_state.tile_heights[i / 4][i % 4];
             binary_game_state |= (height as u64) << (position * 3);
         }
-        let player_a_position = Self::TILE_ID_TO_POSITION[generic_game_state.player_a_tile as usize] as u64;
-        let player_b_position = Self::TILE_ID_TO_POSITION[generic_game_state.player_b_tile as usize] as u64;
+
+        let player_a_tile = generic_game_state.player_a_pieces[0] as usize;
+        let player_b_tile = generic_game_state.player_b_pieces[0] as usize;
+        let player_a_position = Self::TILE_ID_TO_POSITION[player_a_tile] as u64;
+        let player_b_position = Self::TILE_ID_TO_POSITION[player_b_tile] as u64;
+
         binary_game_state |= player_a_position << 48;
         binary_game_state |= player_b_position << 52;
 
-        if generic_game_state.tile_heights[generic_game_state.player_a_tile as usize] == 3 {
+        if generic_game_state.tile_heights[player_a_tile / 4][player_a_tile % 4] == 3 {
             binary_game_state |= 1 << 63;
         }
-        if generic_game_state.tile_heights[generic_game_state.player_b_tile as usize] == 3 {
+        if generic_game_state.tile_heights[player_b_tile / 4][player_b_tile % 4] == 3 {
             binary_game_state |= 1 << 62;
+        }
+
+        if generic_game_state.player_a_turn {
+            binary_game_state |= 1 << 61;
         }
 
         return Self(binary_game_state);
     }
 
-    fn to_generic_game_state(self) -> Generic4x4GameState {
+    fn to_generic_game_state(self) -> GenericSantoriniGameState<4, 4, 1> {
         let position_heights = self.get_position_heights();
-        let mut tile_heights = [0; 16];
+        let mut tile_heights = [[0; 4]; 4];
         for i in 0..16 {
             let position = Self::TILE_ID_TO_POSITION[i];
-            tile_heights[i] = position_heights[position];
+            tile_heights[i / 4][i % 4] = position_heights[position];
         }
         // Convert position to tile
         let player_a_tile = Self::POSITION_TO_TILE_ID[self.get_player_a_position() as usize] as u8;
         let player_b_tile = Self::POSITION_TO_TILE_ID[self.get_player_b_position() as usize] as u8;
-        return Generic4x4GameState::new(player_a_tile, player_b_tile, tile_heights).expect("Invalid game state");
+
+        return GenericSantoriniGameState::<4, 4, 1>::new([player_a_tile], [player_b_tile], tile_heights, self.is_player_a_turn())
+            .expect("Invalid game state");
     }
 
     fn get_children_states(self) -> Vec<Self> {
         let mut possible_next_states = Vec::new();
 
-        let player_a_position = self.get_player_a_position() as usize;
-        let player_b_position = self.get_player_b_position() as usize;
+        let is_player_a_turn = self.is_player_a_turn();
 
-        let player_a_height = (self.0 >> (player_a_position * 3)) & 0x7;
-        let max_movement_height = match player_a_height {
+        let moving_player_position = if is_player_a_turn {
+            self.get_player_a_position() as usize
+        } else {
+            self.get_player_b_position() as usize
+        };
+        let other_player_position = if is_player_a_turn {
+            self.get_player_b_position() as usize
+        } else {
+            self.get_player_a_position() as usize
+        };
+
+        let moving_player_bit_offset = if is_player_a_turn {
+            48
+        } else {
+            52
+        };
+
+        let moving_player_height = (self.0 >> (moving_player_position * 3)) & 0x7;
+        let max_movement_height = match moving_player_height {
             0 => 1,
             1 => 2,
             2 => 3,
             _ => panic!("Can't get children for a game state that is already won")
         };
 
-        for movement_position in Self::POSITION_TO_NEIGHBORS[player_a_position] {
+        // Clearing the moving player position and flipping the turn
+        let new_state_base = (self.0 & !(0xF << moving_player_bit_offset)) ^ (1 << 61);
+
+        for movement_position in Self::POSITION_TO_NEIGHBORS[moving_player_position] {
             if movement_position == Self::NO_NEIGHBOR {
-                continue;
+                break;
             }
-            if movement_position == player_b_position {
+            if movement_position == other_player_position {
                 continue;
             }
             let movement_height = (self.0 >> (movement_position * 3)) & 0x7;
@@ -181,9 +214,9 @@ impl GameState for Binary3BitGameState {
 
             for build_position in Self::POSITION_TO_NEIGHBORS[movement_position] {
                 if build_position == Self::NO_NEIGHBOR {
-                    continue;
+                    break;
                 }
-                if build_position == player_b_position {
+                if build_position == other_player_position {
                     continue;
                 }
                 let build_height = (self.0 >> (build_position * 3)) & 0x7;
@@ -191,12 +224,15 @@ impl GameState for Binary3BitGameState {
                     continue;
                 }
 
-                let mut new_state = self.0;
-                new_state &= !(0xF << 48);
-                new_state |= (movement_position as u64) << 48;
+                let mut new_state = new_state_base;
+                new_state |= (movement_position as u64) << moving_player_bit_offset;
                 new_state += 1 << (build_position * 3);
                 if movement_height == 3 {
-                    new_state |= 1 << 63;
+                    if is_player_a_turn {
+                        new_state |= 1 << 63;
+                    } else {
+                        new_state |= 1 << 62;
+                    }
                 }
 
                 possible_next_states.push(Self(new_state));
@@ -219,12 +255,14 @@ impl GameState for Binary3BitGameState {
         if flipped_state & (3 << 62) != 0 {
             flipped_state ^= 3 << 62;
         }
+        // Flip the turn
+        flipped_state ^= 1 << 61;
         return Self(flipped_state);
     }
 }
 
 
-impl Binary3BitGameState {
+impl GameState4x4Binary3Bit {
     const DISTANCE_TO_STATIC_VALUATION: [f32; 4] = [5.0, 2.0, 1.0, 0.5];
     const HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION: [[f32; 5]; 3] = [
         [1.0, 1.5, -1.0, 0.0, -1.0], //Start height 0
@@ -273,7 +311,7 @@ impl Binary3BitGameState {
     }
 }
 
-impl StaticEvaluation for Binary3BitGameState {
+impl StaticEvaluation for GameState4x4Binary3Bit {
     fn get_static_evaluation(&self) -> f32 {
         if self.has_player_a_won() {
             return f32::MAX;
@@ -307,7 +345,7 @@ impl StaticEvaluation for Binary3BitGameState {
  */
 type SymmetricMirrorType = u8;
 
-impl Binary3BitGameState {
+impl GameState4x4Binary3Bit {
     const POS_TO_DIAGONALLY_MIRRORED_POS: [u64; 16] = Self::precompute_pos_to_diagonally_mirrored_pos();
     const fn precompute_pos_to_diagonally_mirrored_pos() -> [u64; 16] {
         let mut pos_to_diagonally_mirrored_pos = [0; 16];
@@ -387,7 +425,7 @@ impl Binary3BitGameState {
     }
 }
 
-impl SimplifiedState for Binary3BitGameState {
+impl SimplifiedState for GameState4x4Binary3Bit {
     fn get_simplified_state(&self) -> Self {
         let height_information = self.0 & 0xFFFFFFFFFFFF;
         let status_information = self.0 & (0xFF << 56);
@@ -473,7 +511,7 @@ impl SimplifiedStateVariant {
             if player_b_tile_id == INVALID_INDEX {
                 break;
             }
-            player_b_positions[i] = Binary3BitGameState::TILE_ID_TO_POSITION[player_b_tile_id];
+            player_b_positions[i] = GameState4x4Binary3Bit::TILE_ID_TO_POSITION[player_b_tile_id];
             player_b_options += 1;
             i += 1;
         }
@@ -481,7 +519,7 @@ impl SimplifiedStateVariant {
         let total_possible_states = player_b_options as u64 * 3u64.pow(2) * 5u64.pow(14);
 
         return Self {
-            player_a_position: Binary3BitGameState::TILE_ID_TO_POSITION[player_a_tile_id],
+            player_a_position: GameState4x4Binary3Bit::TILE_ID_TO_POSITION[player_a_tile_id],
             player_b_options,
             player_b_positions,
             total_possible_states,
@@ -489,7 +527,7 @@ impl SimplifiedStateVariant {
     }
 }
 
-impl Binary3BitGameState {
+impl GameState4x4Binary3Bit {
     const POSSIBLE_SIMPLIFIED_STATE_VARIANTS: [SimplifiedStateVariant; 3] = [
         SimplifiedStateVariant::new(
             0,
@@ -517,7 +555,7 @@ impl Binary3BitGameState {
     }
 }
 
-impl ContinuousId for Binary3BitGameState {
+impl ContinuousId for GameState4x4Binary3Bit {
     fn get_continuous_id_count() -> u64 {
         let mut continuous_id_count = 0;
 
@@ -644,7 +682,7 @@ impl TileHeightCombination {
             get_binomial_coefficient(14 - height_4_tiles as u64, height_3_tiles as u64) *
             get_binomial_coefficient(14 - height_4_tiles as u64 - height_3_tiles as u64, height_2_tiles as u64) *
             get_binomial_coefficient(14 - height_4_tiles as u64 - height_3_tiles as u64 - height_2_tiles as u64, height_1_tiles as u64) *
-            Binary3BitGameState::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64; // Player A and B positions
+            GameState4x4Binary3Bit::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64; // Player A and B positions
 
 
         return Self {
@@ -693,7 +731,7 @@ fn get_combination_offset_map() -> HashMap<TileHeightCombinationInput, u64> {
     let mut combination_offset_map = HashMap::new();
 
     for block_count in 0..=64 {
-        for combination in &Binary3BitGameState::TILE_HEIGHT_COMBINATIONS[block_count] {
+        for combination in &GameState4x4Binary3Bit::TILE_HEIGHT_COMBINATIONS[block_count] {
             if !combination.is_valid() {
                 break;
             }
@@ -712,7 +750,7 @@ fn get_combination_offset_map() -> HashMap<TileHeightCombinationInput, u64> {
     return combination_offset_map;
 }
 
-impl Binary3BitGameState {
+impl GameState4x4Binary3Bit {
     const MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT: [usize; 65] = Self::precompute_max_tile_height_combinations_for_block_count();
     const fn precompute_max_tile_height_combinations_for_block_count() -> [usize; 65] {
         let mut max_tile_height_combinations = [0; 65];
@@ -823,7 +861,7 @@ impl Binary3BitGameState {
                                         (height_3_tiles - if player_a_height == 3 { 1 } else { 0 } - if player_b_height == 3 { 1 } else { 0 }) as u8,
                                         (height_2_tiles - if player_a_height == 2 { 1 } else { 0 } - if player_b_height == 2 { 1 } else { 0 }) as u8,
                                         (height_1_tiles - if player_a_height == 1 { 1 } else { 0 } - if player_b_height == 1 { 1 } else { 0 }) as u8,
-                                        summed_state_offset
+                                        summed_state_offset,
                                     );
                                     summed_state_offset += tile_height_combinations[block_amount][combinations_index].possible_state_count;
                                     combinations_index += 1;
@@ -879,11 +917,11 @@ impl Binary3BitGameState {
             &tile_height_combinations[0]
         } else {
             &tile_height_combinations[low - 1]
-        }
+        };
     }
 }
 
-impl ContinuousBlockId for Binary3BitGameState {
+impl ContinuousBlockId for GameState4x4Binary3Bit {
     fn get_block_count(&self) -> u64 {
         let mut block_count = 0;
         let mut data = self.0;
