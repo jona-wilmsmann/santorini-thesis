@@ -168,8 +168,12 @@ impl GameState for GameState4x4Binary3Bit {
     }
 
     fn get_children_states(self) -> Vec<Self> {
-        let mut possible_next_states = Vec::new();
+        debug_assert!(!self.has_player_a_won());
+        debug_assert!(!self.has_player_b_won());
 
+        let mut possible_next_states = Vec::with_capacity(32);
+
+        let position_heights = self.get_position_heights();
         let is_player_a_turn = self.is_player_a_turn();
 
         let moving_player_position = if is_player_a_turn {
@@ -189,7 +193,7 @@ impl GameState for GameState4x4Binary3Bit {
             52
         };
 
-        let moving_player_height = (self.0 >> (moving_player_position * 3)) & 0x7;
+        let moving_player_height = position_heights[moving_player_position];
         let max_movement_height = match moving_player_height {
             0 => 1,
             1 => 2,
@@ -200,6 +204,7 @@ impl GameState for GameState4x4Binary3Bit {
         // Clearing the moving player position and flipping the turn
         let new_state_base = (self.0 & !(0xF << moving_player_bit_offset)) ^ (1 << 61);
 
+
         for movement_position in Self::POSITION_TO_NEIGHBORS[moving_player_position] {
             if movement_position == Self::NO_NEIGHBOR {
                 break;
@@ -207,7 +212,7 @@ impl GameState for GameState4x4Binary3Bit {
             if movement_position == other_player_position {
                 continue;
             }
-            let movement_height = (self.0 >> (movement_position * 3)) & 0x7;
+            let movement_height = position_heights[movement_position];
             if movement_height > max_movement_height {
                 continue;
             }
@@ -219,7 +224,7 @@ impl GameState for GameState4x4Binary3Bit {
                 if build_position == other_player_position {
                     continue;
                 }
-                let build_height = (self.0 >> (build_position * 3)) & 0x7;
+                let build_height = position_heights[build_position];
                 if build_height >= 4 {
                     continue;
                 }
