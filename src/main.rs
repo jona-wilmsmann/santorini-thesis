@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use num_format::{Locale, ToFormattedString};
 use santorini_minimax::game_state::{ContinuousBlockId, GameState, SimplifiedState, StaticEvaluation};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
+use santorini_minimax::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
 use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use santorini_minimax::minimax::minimax_cache::MinimaxCache;
 use santorini_minimax::minimax::{minimax, minimax_with_moves, readable_minmax_value};
@@ -35,6 +36,33 @@ fn measure_minimax_and_log_moves<GS: GameState + StaticEvaluation + SimplifiedSt
 
 #[tokio::main]
 async fn main() {
+    type GGS = GenericSantoriniGameState<5, 5, 2>;
+    type GS = GameState5x5Binary128bit;
+
+    let generic_game_state = GGS::new(
+        [0, GGS::WORKER_NOT_PLACED],
+        [23, GGS::WORKER_NOT_PLACED],
+        [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+        ],
+        true,
+    ).unwrap();
+
+    println!("{}", generic_game_state);
+
+    let game_state = GS::from_generic_game_state(&generic_game_state);
+
+    let children_states = game_state.get_children_states();
+
+    for (i, state) in children_states.iter().enumerate() {
+        println!("Child state {}:\n{}", i, state);
+    }
+
+    /*
     type GS = GameState4x4Binary3Bit;
 
     let mut console_input_strategy = ConsoleInputStrategy::<GenericSantoriniGameState<4, 4, 1>>::new();
@@ -50,6 +78,7 @@ async fn main() {
     } else {
         println!("Player 2 wins!");
     }
+     */
 
     /*
     let num_threads = std::thread::available_parallelism().map_or(1, |n| n.get());

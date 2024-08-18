@@ -110,7 +110,7 @@ impl GameState for GameState4x4Binary4Bit {
         return Self(binary_game_state);
     }
 
-    fn to_generic_game_state(self) -> GenericSantoriniGameState<4, 4, 1> {
+    fn to_generic_game_state(&self) -> GenericSantoriniGameState<4, 4, 1> {
         let mut tile_heights = [[0; 4]; 4];
         let mut player_a_tile = 0;
         let mut player_b_tile = 0;
@@ -128,7 +128,7 @@ impl GameState for GameState4x4Binary4Bit {
         return GenericSantoriniGameState::<4, 4, 1>::new([player_a_tile], [player_b_tile], tile_heights, true).expect("Invalid game state");
     }
 
-    fn get_children_states(self) -> Vec<Self> {
+    fn get_children_states(&self) -> Vec<Self> {
         return self.get_children_states_reuse_vec(Vec::with_capacity(32));
     }
 

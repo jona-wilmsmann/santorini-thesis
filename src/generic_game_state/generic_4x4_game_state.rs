@@ -1,7 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
 use anyhow::{ensure, Result};
-use rand::Rng;
 use crate::generic_game_state::GenericGameState;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd)]
@@ -64,11 +63,13 @@ impl Generic4x4GameState {
 #[allow(deprecated)]
 impl GenericGameState for Generic4x4GameState {
     fn generate_random_state() -> Generic4x4GameState {
+        return Self::generate_random_state_rng(&mut rand::thread_rng());
+    }
+
+    fn generate_random_state_rng<RNG: rand::Rng>(rng: &mut RNG) -> Self {
         let mut tile_heights = [0; 16];
         let player_a_tile;
         let mut player_b_tile ;
-
-        let mut rng = rand::thread_rng();
 
         player_a_tile = rng.gen_range(0..16) as u8;
 
@@ -86,10 +87,12 @@ impl GenericGameState for Generic4x4GameState {
 
         return Generic4x4GameState::new(player_a_tile, player_b_tile, tile_heights).expect("Randomly generated invalid game state");
     }
-    fn generate_random_state_with_blocks(mut block_amount: usize) -> Generic4x4GameState {
-        let mut tile_heights = [0; 16];
+    fn generate_random_state_with_blocks(block_amount: usize) -> Generic4x4GameState {
+        return Self::generate_random_state_with_blocks_rng(&mut rand::thread_rng(), block_amount);
+    }
 
-        let mut rng = rand::thread_rng();
+    fn generate_random_state_with_blocks_rng<RNG: rand::Rng>(rng: &mut RNG, mut block_amount: usize) -> Self {
+        let mut tile_heights = [0; 16];
 
         while block_amount > 0 {
             loop {

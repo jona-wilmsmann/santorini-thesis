@@ -2,11 +2,12 @@
 mod tests {
     use crate::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
     use crate::game_state::game_state_4x4_binary_4bit::GameState4x4Binary4Bit;
+    use crate::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
     use crate::game_state::GameState;
     use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
     use crate::generic_game_state::GenericGameState;
 
-    fn find_discrepancies(tries: usize) {
+    fn find_4x4_discrepancies(tries: usize) {
         for _ in 0..tries {
             let mut random_state = GenericSantoriniGameState::<4, 4, 1>::generate_random_state();
             // Ensure player A turn is true, because the 4b states do not have player turn information
@@ -29,7 +30,7 @@ mod tests {
         }
     }
 
-    fn find_flip_discrepancies(tries: usize) {
+    fn find_4x4_flip_discrepancies(tries: usize) {
         for _ in 0..tries {
             let random_state = GenericSantoriniGameState::<4, 4, 1>::generate_random_state();
             let binary_3b_state = GameState4x4Binary3Bit::from_generic_game_state(&random_state);
@@ -57,13 +58,42 @@ mod tests {
         }
     }
 
+    fn find_5x5_generic_conversion_discrepancies(tries: usize) {
+        let generic_state_without_all_workers = GenericSantoriniGameState::<5, 5, 2>::new(
+            [0, GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED],
+            [1, GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED],
+            [[0; 5]; 5],
+            true
+        ).unwrap();
+
+        let binary_state_without_all_workers = GameState5x5Binary128bit::from_generic_game_state(&generic_state_without_all_workers);
+        let converted_generic_state_without_all_workers = binary_state_without_all_workers.to_generic_game_state();
+
+        assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers);
+
+        for _ in 0..tries {
+            let random_generic_state = GenericSantoriniGameState::<5, 5, 2>::generate_random_state();
+
+            let binary_state = GameState5x5Binary128bit::from_generic_game_state(&random_generic_state);
+
+            let converted_generic_state = binary_state.to_generic_game_state();
+
+            assert_eq!(random_generic_state, converted_generic_state);
+        }
+    }
+
     #[test]
     fn test_find_discrepancies() {
-        find_discrepancies(100000);
+        find_4x4_discrepancies(100000);
     }
 
     #[test]
     fn test_find_flip_discrepancies() {
-        find_flip_discrepancies(100000);
+        find_4x4_flip_discrepancies(100000);
+    }
+
+    #[test]
+    fn test_find_5x5_generic_conversion_discrepancies() {
+        find_5x5_generic_conversion_discrepancies(100000);
     }
 }

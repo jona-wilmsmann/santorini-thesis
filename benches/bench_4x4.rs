@@ -8,12 +8,12 @@ use santorini_minimax::generic_game_state::GenericGameState;
 fn criterion_benchmark(c: &mut Criterion) {
     let mut rng = rand::rngs::StdRng::seed_from_u64(0);
 
-    let random_states: Vec<GameState4x4Binary3Bit> = (0..1000000).map(|_| GameState4x4Binary3Bit::from_generic_game_state(&GenericSantoriniGameState::<4, 4, 1>::generate_random_state())).collect();
+    let random_states: Vec<GameState4x4Binary3Bit> = (0..1000000).map(|_| GameState4x4Binary3Bit::from_generic_game_state(&GenericSantoriniGameState::<4, 4, 1>::generate_random_state_rng(&mut rng))).collect();
     let random_simplified_states: Vec<GameState4x4Binary3Bit> = random_states.iter().map(|state| state.get_simplified_state()).collect();
     let random_continuous_ids: Vec<u64> = (0..1000000).map(|_| rng.gen_range(0..GameState4x4Binary3Bit::get_continuous_id_count())).collect();
     let random_continuous_block_ids: Vec<(u64, u64)> = random_simplified_states.iter().map(|state| (state.get_block_count(), state.get_continuous_block_id())).collect();
 
-    let mut group = c.benchmark_group("GameState Benchmarks");
+    let mut group = c.benchmark_group("GameState 4x4 Benchmarks");
 
     // Here we specify the desired sample size
     group.sample_size(10);

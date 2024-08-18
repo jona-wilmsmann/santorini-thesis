@@ -10,8 +10,8 @@ pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash:
     fn has_player_a_won(&self) -> bool;
     fn has_player_b_won(&self) -> bool;
     fn from_generic_game_state(generic_game_state: &Self::GenericGameState) -> Self;
-    fn to_generic_game_state(self) -> Self::GenericGameState;
-    fn get_children_states(self) -> Vec<Self>;
+    fn to_generic_game_state(&self) -> Self::GenericGameState;
+    fn get_children_states(&self) -> Vec<Self>;
     fn get_children_states_reuse_vec(&self, vec: Vec<Self>) -> Vec<Self>;
     fn get_flipped_state(&self) -> Self;
 }
@@ -41,6 +41,7 @@ pub trait ContinuousBlockId {
 #[allow(dead_code)]
 pub mod game_state_4x4_binary_4bit;
 pub mod game_state_4x4_binary_3bit;
+pub mod game_state_5x5_binary_128bit;
 pub mod utils;
 
 mod game_state_tests;

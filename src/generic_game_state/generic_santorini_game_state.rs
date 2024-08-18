@@ -1,8 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
 use anyhow::{ensure, Result};
-use rand::Rng;
-use rand::rngs::ThreadRng;
 use crate::generic_game_state::GenericGameState;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd)]
@@ -19,7 +17,7 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> f
         for row in (0..ROWS).rev() {
             write!(f, "---------------------\n")?;
             for column in 0..COLUMNS {
-                let tile_id = row * 4 + column;
+                let tile_id = row * COLUMNS + column;
                 let height = self.tile_heights[row][column];
                 let character = if self.player_a_workers.contains(&(tile_id as u8)) {
                     'A'
@@ -44,11 +42,25 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> f
 }
 
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
-    const WORKER_NOT_PLACED: u8 = u8::MAX;
+    pub const WORKER_NOT_PLACED: u8 = u8::MAX;
 
     pub fn new(player_a_workers: [u8; WORKERS_PER_PLAYER], player_b_workers: [u8; WORKERS_PER_PLAYER], tile_heights: [[u8; COLUMNS]; ROWS], player_a_turn: bool) -> Result<GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER>> {
-        let player_a_worker_count = player_a_workers.iter().filter(|&x| *x != Self::WORKER_NOT_PLACED).count();
-        let player_b_worker_count = player_b_workers.iter().filter(|&x| *x != Self::WORKER_NOT_PLACED).count();
+        let mut player_a_worker_count = 0;
+        let mut player_b_worker_count = 0;
+
+
+        for (worker_count, workers) in [(&mut player_a_worker_count, &player_a_workers), (&mut player_b_worker_count, &player_b_workers)] {
+            let mut last_worker_not_placed = false;
+
+            for worker in workers {
+                if *worker == Self::WORKER_NOT_PLACED {
+                    last_worker_not_placed = true;
+                    continue;
+                }
+                ensure!(!last_worker_not_placed, "Player workers must be placed in order");
+                *worker_count += 1;
+            }
+        }
 
         if player_a_worker_count == 0 && player_b_worker_count == 0 {
             // Beginning of the game, no workers are placed
@@ -104,11 +116,15 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
     pub fn set_player_a_turn(&mut self, player_a_turn: bool) {
         self.player_a_turn = player_a_turn;
     }
+
+    pub fn get_tile_height(&self, tile_id: usize) -> u8 {
+        return self.tile_heights[tile_id / COLUMNS][tile_id % COLUMNS];
+    }
 }
 
 
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
-    fn get_random_worker_positions(rng: &mut ThreadRng) -> ([u8; WORKERS_PER_PLAYER], [u8; WORKERS_PER_PLAYER]) {
+    fn get_random_worker_positions<RNG: rand::Rng>(rng: &mut RNG) -> ([u8; WORKERS_PER_PLAYER], [u8; WORKERS_PER_PLAYER]) {
         let mut player_a_workers = [GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::WORKER_NOT_PLACED; WORKERS_PER_PLAYER];
         let mut player_b_workers = [GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::WORKER_NOT_PLACED; WORKERS_PER_PLAYER];
 
@@ -136,11 +152,13 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
 
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> GenericGameState for GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
     fn generate_random_state() -> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
+        return Self::generate_random_state_rng(&mut rand::thread_rng());
+    }
+
+    fn generate_random_state_rng<RNG: rand::Rng>(rng: &mut RNG) -> Self {
         let mut tile_heights = [[0; COLUMNS]; ROWS];
 
-        let mut rng = rand::thread_rng();
-
-        let (player_a_workers, player_b_workers) = GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::get_random_worker_positions(&mut rng);
+        let (player_a_workers, player_b_workers) = GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::get_random_worker_positions(rng);
         let worker_tiles = player_a_workers.iter().chain(player_b_workers.iter()).copied().collect::<Vec<u8>>();
 
         let mut block_count = 0;
@@ -159,11 +177,13 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
     }
 
     fn generate_random_state_with_blocks(block_amount: usize) -> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
+        return Self::generate_random_state_with_blocks_rng(&mut rand::thread_rng(), block_amount);
+    }
+
+    fn generate_random_state_with_blocks_rng<RNG: rand::Rng>(rng: &mut RNG, block_amount: usize) -> Self {
         let mut tile_heights = [[0; COLUMNS]; ROWS];
 
-        let mut rng = rand::thread_rng();
-
-        let (player_a_workers, player_b_workers) = GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::get_random_worker_positions(&mut rng);
+        let (player_a_workers, player_b_workers) = GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::get_random_worker_positions(rng);
 
         let mut tile_max_heights = [[4; COLUMNS]; ROWS];
         for i in 0..WORKERS_PER_PLAYER {

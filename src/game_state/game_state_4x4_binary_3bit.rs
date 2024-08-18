@@ -78,15 +78,15 @@ impl GameState4x4Binary3Bit {
         return position_to_neighbors;
     }
 
-    fn get_player_a_position(self) -> u64 {
+    fn get_player_a_position(&self) -> u64 {
         return (self.0 >> 48) & 0xF;
     }
 
-    fn get_player_b_position(self) -> u64 {
+    fn get_player_b_position(&self) -> u64 {
         return (self.0 >> 52) & 0xF;
     }
 
-    fn get_position_heights(self) -> [u8; 16] {
+    fn get_position_heights(&self) -> [u8; 16] {
         let mut position_heights = [0; 16];
 
         let mut data = self.0;
@@ -97,7 +97,7 @@ impl GameState4x4Binary3Bit {
         return position_heights;
     }
 
-    fn is_player_a_turn(self) -> bool {
+    fn is_player_a_turn(&self) -> bool {
         return self.0 & (1 << 61) != 0;
     }
 }
@@ -126,9 +126,11 @@ impl GameState for GameState4x4Binary3Bit {
         let mut binary_game_state = 0;
         for i in 0..16 {
             let position = Self::TILE_ID_TO_POSITION[i];
-            let height = generic_game_state.tile_heights[i / 4][i % 4];
+            let height = generic_game_state.get_tile_height(i);
             binary_game_state |= (height as u64) << (position * 3);
         }
+
+        // TODO: Handle workers not being placed yet
 
         let player_a_tile = generic_game_state.player_a_workers[0] as usize;
         let player_b_tile = generic_game_state.player_b_workers[0] as usize;
@@ -138,10 +140,10 @@ impl GameState for GameState4x4Binary3Bit {
         binary_game_state |= player_a_position << 48;
         binary_game_state |= player_b_position << 52;
 
-        if generic_game_state.tile_heights[player_a_tile / 4][player_a_tile % 4] == 3 {
+        if generic_game_state.get_tile_height(player_a_tile) == 3 {
             binary_game_state |= 1 << 63;
         }
-        if generic_game_state.tile_heights[player_b_tile / 4][player_b_tile % 4] == 3 {
+        if generic_game_state.get_tile_height(player_b_tile) == 3 {
             binary_game_state |= 1 << 62;
         }
 
@@ -152,7 +154,7 @@ impl GameState for GameState4x4Binary3Bit {
         return Self(binary_game_state);
     }
 
-    fn to_generic_game_state(self) -> GenericSantoriniGameState<4, 4, 1> {
+    fn to_generic_game_state(&self) -> GenericSantoriniGameState<4, 4, 1> {
         let position_heights = self.get_position_heights();
         let mut tile_heights = [[0; 4]; 4];
         for i in 0..16 {
@@ -167,7 +169,7 @@ impl GameState for GameState4x4Binary3Bit {
             .expect("Invalid game state");
     }
 
-    fn get_children_states(self) -> Vec<Self> {
+    fn get_children_states(&self) -> Vec<Self> {
         return self.get_children_states_reuse_vec(Vec::with_capacity(32));
     }
 
