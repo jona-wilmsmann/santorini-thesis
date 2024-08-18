@@ -101,8 +101,8 @@ impl GameState for GameState4x4Binary4Bit {
         for i in 0..16 {
             let position = Self::TILE_ID_TO_POSITION[i];
             let height = if generic_game_state.tile_heights[i / 4][i % 4] == 4 { 7 } else { generic_game_state.tile_heights[i / 4][i % 4] };
-            let player_present = generic_game_state.player_a_pieces[0] as usize == i;
-            let opponent_present = generic_game_state.player_b_pieces[0] as usize == i;
+            let player_present = generic_game_state.player_a_workers[0] as usize == i;
+            let opponent_present = generic_game_state.player_b_workers[0] as usize == i;
             let info = (height as u64) | (player_present as u64) << 3 | (opponent_present as u64) << 2;
             binary_game_state |= info << (position * 4);
         }

@@ -130,8 +130,8 @@ impl GameState for GameState4x4Binary3Bit {
             binary_game_state |= (height as u64) << (position * 3);
         }
 
-        let player_a_tile = generic_game_state.player_a_pieces[0] as usize;
-        let player_b_tile = generic_game_state.player_b_pieces[0] as usize;
+        let player_a_tile = generic_game_state.player_a_workers[0] as usize;
+        let player_b_tile = generic_game_state.player_b_workers[0] as usize;
         let player_a_position = Self::TILE_ID_TO_POSITION[player_a_tile] as u64;
         let player_b_position = Self::TILE_ID_TO_POSITION[player_b_tile] as u64;
 
