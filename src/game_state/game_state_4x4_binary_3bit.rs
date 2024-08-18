@@ -168,10 +168,15 @@ impl GameState for GameState4x4Binary3Bit {
     }
 
     fn get_children_states(self) -> Vec<Self> {
+        return self.get_children_states_reuse_vec(Vec::with_capacity(32));
+    }
+
+    fn get_children_states_reuse_vec(&self, vec: Vec<Self>) -> Vec<Self> {
         debug_assert!(!self.has_player_a_won());
         debug_assert!(!self.has_player_b_won());
 
-        let mut possible_next_states = Vec::with_capacity(32);
+        let mut possible_next_states = vec;
+        possible_next_states.clear();
 
         let position_heights = self.get_position_heights();
         let is_player_a_turn = self.is_player_a_turn();

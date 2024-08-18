@@ -31,7 +31,7 @@ mod tests {
 
     fn find_flip_discrepancies(tries: usize) {
         for _ in 0..tries {
-            let mut random_state = GenericSantoriniGameState::<4, 4, 1>::generate_random_state();
+            let random_state = GenericSantoriniGameState::<4, 4, 1>::generate_random_state();
             let binary_3b_state = GameState4x4Binary3Bit::from_generic_game_state(&random_state);
             let binary_4b_state = GameState4x4Binary4Bit::from_generic_game_state(&random_state);
 

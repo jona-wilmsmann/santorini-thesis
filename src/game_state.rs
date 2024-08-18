@@ -12,6 +12,7 @@ pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash:
     fn from_generic_game_state(generic_game_state: &Self::GenericGameState) -> Self;
     fn to_generic_game_state(self) -> Self::GenericGameState;
     fn get_children_states(self) -> Vec<Self>;
+    fn get_children_states_reuse_vec(&self, vec: Vec<Self>) -> Vec<Self>;
     fn get_flipped_state(&self) -> Self;
 }
 

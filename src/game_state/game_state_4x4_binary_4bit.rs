@@ -129,7 +129,12 @@ impl GameState for GameState4x4Binary4Bit {
     }
 
     fn get_children_states(self) -> Vec<Self> {
-        let mut possible_next_states = Vec::new();
+        return self.get_children_states_reuse_vec(Vec::with_capacity(32));
+    }
+
+    fn get_children_states_reuse_vec(&self, vec: Vec<Self>) -> Vec<Self> {
+        let mut possible_next_states = vec;
+        possible_next_states.clear();
 
         let player_a_bit = self.0 & Self::PLAYER_A_MASK;
         let player_a_position = (player_a_bit.trailing_zeros() / 4) as usize;

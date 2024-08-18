@@ -18,9 +18,16 @@ fn criterion_benchmark(c: &mut Criterion) {
     // Here we specify the desired sample size
     group.sample_size(10);
 
-    group.bench_function("generate 1,000,000 next states", |b| b.iter(|| {
+    group.bench_function("generate 1,000,000 children states", |b| b.iter(|| {
         for state in &random_states {
             black_box(state.get_children_states());
+        }
+    }));
+
+    group.bench_function("generate 1,000,000 children states with vec reuse", |b| b.iter(|| {
+        let mut vec = Vec::with_capacity(32);
+        for state in &random_states {
+            vec = black_box(state.get_children_states_reuse_vec(vec));
         }
     }));
 
