@@ -42,6 +42,7 @@ pub trait ContinuousBlockId {
 pub mod game_state_4x4_binary_4bit;
 pub mod game_state_4x4_binary_3bit;
 pub mod game_state_5x5_binary_128bit;
+pub mod game_state_5x5_struct;
 pub mod utils;
 
 mod game_state_tests;

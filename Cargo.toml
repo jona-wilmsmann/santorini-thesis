@@ -23,5 +23,9 @@ name = "bench_4x4"
 harness = false
 
 [[bench]]
-name = "bench_5x5"
+name = "bench_5x5_128"
+harness = false
+
+[[bench]]
+name = "bench_5x5_struct"
 harness = false

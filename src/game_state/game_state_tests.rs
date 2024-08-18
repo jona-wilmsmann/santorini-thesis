@@ -3,6 +3,7 @@ mod tests {
     use crate::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
     use crate::game_state::game_state_4x4_binary_4bit::GameState4x4Binary4Bit;
     use crate::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
+    use crate::game_state::game_state_5x5_struct::GameState5x5Struct;
     use crate::game_state::GameState;
     use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
     use crate::generic_game_state::GenericGameState;
@@ -67,28 +68,35 @@ mod tests {
         ).unwrap();
 
         let binary_state_without_all_workers = GameState5x5Binary128bit::from_generic_game_state(&generic_state_without_all_workers);
-        let converted_generic_state_without_all_workers = binary_state_without_all_workers.to_generic_game_state();
+        let converted_generic_state_without_all_workers_binary = binary_state_without_all_workers.to_generic_game_state();
 
-        assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers);
+        let struct_state_without_all_workers = GameState5x5Struct::from_generic_game_state(&generic_state_without_all_workers);
+        let converted_generic_state_without_all_workers_struct = struct_state_without_all_workers.to_generic_game_state();
+
+        assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers_binary);
+        assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers_struct);
 
         for _ in 0..tries {
             let random_generic_state = GenericSantoriniGameState::<5, 5, 2>::generate_random_state();
 
             let binary_state = GameState5x5Binary128bit::from_generic_game_state(&random_generic_state);
+            let converted_generic_state_binary = binary_state.to_generic_game_state();
 
-            let converted_generic_state = binary_state.to_generic_game_state();
+            let struct_state = GameState5x5Struct::from_generic_game_state(&random_generic_state);
+            let converted_generic_state_struct = struct_state.to_generic_game_state();
 
-            assert_eq!(random_generic_state, converted_generic_state);
+            assert_eq!(random_generic_state, converted_generic_state_binary);
+            assert_eq!(random_generic_state, converted_generic_state_struct);
         }
     }
 
     #[test]
-    fn test_find_discrepancies() {
+    fn test_find_4x4_discrepancies() {
         find_4x4_discrepancies(100000);
     }
 
     #[test]
-    fn test_find_flip_discrepancies() {
+    fn test_find_4x4_flip_discrepancies() {
         find_4x4_flip_discrepancies(100000);
     }
 

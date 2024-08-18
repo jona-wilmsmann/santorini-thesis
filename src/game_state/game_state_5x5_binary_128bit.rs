@@ -197,7 +197,7 @@ impl GameState for GameState5x5Binary128bit {
 
         let mut tile_has_worker = [false; 25];
         for worker_tile in moving_player_workers.iter().chain(other_player_workers.iter()) {
-            if *worker_tile != GameState5x5Binary128bit::WORKER_NOT_PLACED {
+            if *worker_tile != Self::WORKER_NOT_PLACED {
                 tile_has_worker[*worker_tile as usize] = true;
             }
         }
