@@ -17,8 +17,9 @@ If only one worker is placed, it must be in the worker 1 position.
  */
 use std::fmt;
 use std::fmt::Formatter;
-use crate::game_state::GameState;
+use crate::game_state::{GameState, MinimaxReady};
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
+use crate::minimax::minimax_cache::MinimaxCache;
 
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub struct GameState5x5Binary128bit(u128);
@@ -290,5 +291,93 @@ impl GameState for GameState5x5Binary128bit {
         }
 
         return GameState5x5Binary128bit(new_state);
+    }
+}
+
+impl GameState5x5Binary128bit {
+    const DISTANCE_TO_STATIC_VALUATION: [f32; 5] = [5.0, 2.0, 1.0, 0.5, 0.0];
+    const HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION: [[f32; 5]; 3] = [
+        [1.0, 1.5, -1.0, 0.0, -1.0], //Start height 0
+        [1.0, 1.5, 2.0, 0.5, -1.0], //Start height 1
+        [1.0, 1.5, 2.0, 3.0, -1.0], //Start height 2
+    ];
+
+    const TILE_TO_TILE_TO_HEIGHT_TO_HEIGHT_TO_VALUATION: [[[[f32; 5]; 3]; 25]; 25] =
+        Self::precompute_tile_to_tile_to_height_to_height_to_valuation();
+    const fn precompute_tile_to_tile_to_height_to_height_to_valuation() -> [[[[f32; 5]; 3]; 25]; 25] {
+        let mut tile_to_tile_to_height_to_height_to_valuation = [[[[0.0; 5]; 3]; 25]; 25];
+
+        let mut i = 0;
+        while i < 25 {
+            let row_i = i / 5;
+            let column_i = i % 5;
+            let mut j = 0;
+            while j < 25 {
+                let row_j = j / 5;
+                let column_j = j % 5;
+
+                let row_distance = if row_i > row_j { row_i - row_j } else { row_j - row_i };
+                let column_distance = if column_i > column_j { column_i - column_j } else { column_j - column_i };
+                let distance = if row_distance > column_distance { row_distance } else { column_distance };
+
+                let mut start_height = 0;
+                while start_height <= 2 {
+                    let mut neighbor_height = 0;
+                    while neighbor_height <= 4 {
+                        let height_valuation = Self::HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION[start_height][neighbor_height];
+                        let distance_valuation = Self::DISTANCE_TO_STATIC_VALUATION[distance];
+                        tile_to_tile_to_height_to_height_to_valuation[i][j][start_height][neighbor_height] = height_valuation * distance_valuation;
+                        neighbor_height += 1;
+                    }
+
+                    start_height += 1;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+
+        return tile_to_tile_to_height_to_height_to_valuation;
+    }
+}
+
+impl MinimaxReady for GameState5x5Binary128bit {
+    fn sort_children_states(children_states: &mut Vec<Self>, depth: usize, cache: &mut MinimaxCache<Self>) {
+        if depth > 2 {
+            // Create a vector of tuples with the static evaluation and the GameState
+            let mut children_evaluations: Vec<(Self, f32)> = children_states.iter().map(|state| (state.clone(), state.get_static_evaluation())).collect();
+            // Sort the vector by the static evaluation
+            children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            // Replace the children_states vector with the sorted vector
+            *children_states = children_evaluations.iter().map(|(state, _)| state.clone()).collect();
+        }
+    }
+
+    fn get_static_evaluation(&self) -> f32 {
+        if self.has_player_a_won() {
+            return f32::MAX;
+        } else if self.has_player_b_won() {
+            return f32::MIN;
+        }
+
+        let player_a_workers = self.get_player_a_worker_tiles().iter().map(|&x| x as usize).collect::<Vec<usize>>();
+        let player_b_workers = self.get_player_b_worker_tiles().iter().map(|&x| x as usize).collect::<Vec<usize>>();
+
+        let tile_heights = self.get_position_heights();
+
+        let mut valuation = 0.0;
+
+        // TODO: Consider whose turn it is
+
+        for i in 0..25 {
+            for player_a_worker in &player_a_workers {
+                valuation += Self::TILE_TO_TILE_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[*player_a_worker][i][tile_heights[*player_a_worker] as usize][tile_heights[i] as usize];
+            }
+            for player_b_worker in &player_b_workers {
+                valuation -= Self::TILE_TO_TILE_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[*player_b_worker][i][tile_heights[*player_b_worker] as usize][tile_heights[i] as usize];
+            }
+        }
+
+        return valuation;
     }
 }
