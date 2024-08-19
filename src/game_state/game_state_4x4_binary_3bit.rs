@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use once_cell::sync::Lazy;
-use crate::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, StaticEvaluation};
+use crate::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, MinimaxReady};
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
+use crate::minimax::minimax_cache::MinimaxCache;
 
 /*
 Bits 0-47: 3 bits per tile, 16 tiles
@@ -96,10 +97,6 @@ impl GameState4x4Binary3Bit {
         }
         return position_heights;
     }
-
-    fn is_player_a_turn(&self) -> bool {
-        return self.0 & (1 << 61) != 0;
-    }
 }
 
 impl GameState for GameState4x4Binary3Bit {
@@ -112,6 +109,10 @@ impl GameState for GameState4x4Binary3Bit {
 
     fn raw_value(&self) -> u64 {
         self.0
+    }
+
+    fn is_player_a_turn(&self) -> bool {
+        return self.0 & (1 << 61) != 0;
     }
 
     fn has_player_a_won(&self) -> bool {
@@ -323,7 +324,18 @@ impl GameState4x4Binary3Bit {
     }
 }
 
-impl StaticEvaluation for GameState4x4Binary3Bit {
+impl MinimaxReady for GameState4x4Binary3Bit {
+    fn sort_children_states(children_states: &mut Vec<Self>, depth: usize, _cache: &mut MinimaxCache<Self>) {
+        if depth > 2 {
+            // Create a vector of tuples with the static evaluation and the GameState
+            let mut children_evaluations: Vec<(Self, f32)> = children_states.iter().map(|state| (state.clone(), state.get_static_evaluation())).collect();
+            // Sort the vector by the static evaluation
+            children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            // Replace the children_states vector with the sorted vector
+            *children_states = children_evaluations.iter().map(|(state, _)| state.clone()).collect();
+        }
+    }
+
     fn get_static_evaluation(&self) -> f32 {
         if self.has_player_a_won() {
             return f32::MAX;
@@ -335,6 +347,8 @@ impl StaticEvaluation for GameState4x4Binary3Bit {
         let player_b_position = self.get_player_b_position() as usize;
         let position_heights = self.get_position_heights();
         let mut valuation = 0.0;
+
+        // TODO: Consider whose turn it is
 
         for i in 0..16 {
             valuation += Self::POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[player_a_position][i][position_heights[player_a_position] as usize][position_heights[i] as usize];

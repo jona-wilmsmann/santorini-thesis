@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
 use crate::generic_game_state::GenericGameState;
+use crate::minimax::minimax_cache::MinimaxCache;
 
 pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash::Hash {
     type RawValue: Debug + Display;
@@ -7,6 +8,7 @@ pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash:
 
     fn new(value: Self::RawValue) -> Self;
     fn raw_value(&self) -> Self::RawValue;
+    fn is_player_a_turn(&self) -> bool;
     fn has_player_a_won(&self) -> bool;
     fn has_player_b_won(&self) -> bool;
     fn from_generic_game_state(generic_game_state: &Self::GenericGameState) -> Self;
@@ -16,7 +18,8 @@ pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash:
     fn get_flipped_state(&self) -> Self;
 }
 
-pub trait StaticEvaluation {
+pub trait MinimaxReady : GameState {
+    fn sort_children_states(children_states: &mut Vec<Self>, depth: usize, cache: &mut MinimaxCache<Self>);
     fn get_static_evaluation(&self) -> f32;
 }
 

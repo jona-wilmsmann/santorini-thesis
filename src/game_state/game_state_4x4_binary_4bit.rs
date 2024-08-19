@@ -84,14 +84,16 @@ impl GameState for GameState4x4Binary4Bit {
         self.0
     }
 
+    fn is_player_a_turn(&self) -> bool {
+        todo!("The 4bit game state does not have a proper encoding for player turn");
+    }
+
     fn has_player_a_won(&self) -> bool {
-        // TODO: The 4bit game state does not have a proper encoding for win conditions
-        panic!("Not implemented");
+        todo!("The 4bit game state does not have a proper encoding for win conditions");
     }
 
     fn has_player_b_won(&self) -> bool {
-        // TODO: The 4bit game state does not have a proper encoding for win conditions
-        panic!("Not implemented");
+        todo!("The 4bit game state does not have a proper encoding for win conditions");
     }
 
 

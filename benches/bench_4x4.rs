@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, StaticEvaluation};
+use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, MinimaxReady};
 use rand::{Rng, SeedableRng};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;

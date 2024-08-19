@@ -4,18 +4,20 @@
 
 use std::time::{Duration, Instant};
 use num_format::{Locale, ToFormattedString};
-use santorini_minimax::game_state::{ContinuousBlockId, GameState, SimplifiedState, StaticEvaluation};
+use santorini_minimax::game_state::{ContinuousBlockId, GameState, SimplifiedState, MinimaxReady};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
+use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use santorini_minimax::minimax::minimax_cache::MinimaxCache;
-use santorini_minimax::minimax::{minimax, minimax_with_moves, readable_minmax_value};
+use santorini_minimax::minimax::{minimax, readable_minmax_value};
 use santorini_minimax::play_game::play_game;
 use santorini_minimax::precompute_state_winner::presolve_state_winner;
 use santorini_minimax::strategy::console_input_strategy::ConsoleInputStrategy;
 use santorini_minimax::strategy::random_strategy::RandomStrategy;
 
-fn measure_minimax_and_log_moves<GS: GameState + StaticEvaluation + SimplifiedState>(game_state: &GS, depth: usize) {
+/*
+fn measure_minimax_and_log_moves<GS: GameState + MinimaxReady + SimplifiedState>(game_state: &GS, depth: usize) {
     let mut minimax_cache = MinimaxCache::new();
     let start = Instant::now();
     let result = minimax_with_moves(game_state, depth, f32::NEG_INFINITY, f32::INFINITY, &mut minimax_cache);
@@ -33,9 +35,70 @@ fn measure_minimax_and_log_moves<GS: GameState + StaticEvaluation + SimplifiedSt
     println!("Minimax value: {}, took: {:?}", readable_minmax_value(result.0), duration);
     println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
 }
+ */
 
 #[tokio::main]
 async fn main() {
+    type GS4x4 = GameState4x4Binary3Bit;
+    type GGS4x4 = <GameState4x4Binary3Bit as GameState>::GenericGameState;
+
+    let generic_game_state_4x4 = GGS4x4::new(
+        [0],
+        [15],
+        [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ],
+        true,
+    ).unwrap();
+    let game_state_4x4 = GS4x4::from_generic_game_state(&generic_game_state_4x4);
+
+    type GS5x5 = GameState5x5Struct;
+    type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
+
+    let generic_game_state_5x5 = GGS5x5::new(
+        [0, 1],
+        [23, 24],
+        [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+        ],
+        true,
+    ).unwrap();
+    let game_state_5x5 = GS5x5::from_generic_game_state(&generic_game_state_5x5);
+
+
+    let depth = 5;
+
+
+    let start = Instant::now();
+    let mut minimax_cache = MinimaxCache::new();
+    let value = minimax(&game_state_4x4, depth, f32::MIN, f32::MAX, &mut minimax_cache);
+
+    let duration = start.elapsed();
+
+    println!("4x4");
+    println!("Minimax value: {}, took: {:?}", readable_minmax_value(value), duration);
+    println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
+
+
+
+    let start = Instant::now();
+    let mut minimax_cache = MinimaxCache::new();
+    let value = minimax(&game_state_5x5, depth, f32::MIN, f32::MAX, &mut minimax_cache);
+
+    let duration = start.elapsed();
+
+    println!("5x5");
+    println!("Minimax value: {}, took: {:?}", readable_minmax_value(value), duration);
+    println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
+
+    /*
     type GGS = GenericSantoriniGameState<5, 5, 2>;
     type GS = GameState5x5Binary128bit;
 
@@ -61,6 +124,8 @@ async fn main() {
     for (i, state) in children_states.iter().enumerate() {
         println!("Child state {}:\n{}", i, state);
     }
+
+     */
 
     /*
     type GS = GameState4x4Binary3Bit;
@@ -125,15 +190,5 @@ async fn main() {
 
 
     //measure_minimax_and_log_moves(&game_state, 10);
-
-
-    let start = Instant::now();
-    let mut minimax_cache = MinimaxCache::new();
-    let value = minimax(&game_state, 50, f32::MIN, f32::MAX, &mut minimax_cache);
-    //let value = increasing_depth_minimax(&game_state, 35, Duration::from_secs(600), &mut minimax_cache);
-    let duration = start.elapsed();
-
-    println!("Minimax value: {}, took: {:?}", readable_minmax_value(value), duration);
-    println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
     */
 }

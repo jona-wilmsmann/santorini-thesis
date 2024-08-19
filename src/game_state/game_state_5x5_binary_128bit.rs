@@ -82,10 +82,6 @@ impl GameState5x5Binary128bit {
         return position_heights;
     }
 
-    pub fn is_player_a_turn(&self) -> bool {
-        return self.0 & (1u128 << 95) != 0;
-    }
-
     pub fn get_player_a_worker_tiles(&self) -> [u8; 2] {
         return [
             (self.0 >> 75 & 0x1F) as u8,
@@ -111,6 +107,10 @@ impl GameState for GameState5x5Binary128bit {
 
     fn raw_value(&self) -> u128 {
         return self.0;
+    }
+
+    fn is_player_a_turn(&self) -> bool {
+        return self.0 & (1u128 << 95) != 0;
     }
 
     fn has_player_a_won(&self) -> bool {
