@@ -3,7 +3,7 @@ use crate::generic_game_state::GenericGameState;
 use crate::minimax::minimax_cache::MinimaxCache;
 
 pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash::Hash {
-    type RawValue: Debug + Display;
+    type RawValue: Debug;
     type GenericGameState: GenericGameState;
 
     fn new(value: Self::RawValue) -> Self;
@@ -46,6 +46,7 @@ pub mod game_state_4x4_binary_4bit;
 pub mod game_state_4x4_binary_3bit;
 pub mod game_state_5x5_binary_128bit;
 pub mod game_state_5x5_struct;
+pub mod game_state_5x5_binary_composite;
 pub mod utils;
 
 mod game_state_tests;

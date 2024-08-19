@@ -24,7 +24,7 @@ pub async fn create_csv_report<
     wtr.write_record(&["Game State", "Block Amount", "Depth", "Result", "Calculation time", "Evaluated states", "Pruned states"])?;
     for measurement in &measurements {
         wtr.write_record(&[
-            format!("{}", measurement.game_state.raw_value()),
+            format!("{:?}", measurement.game_state.raw_value()),
             format!("{}", measurement.game_state_block_amount),
             format!("{}", measurement.depth),
             format!("{}", readable_minmax_value(measurement.result)),

@@ -3,6 +3,7 @@ mod tests {
     use crate::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
     use crate::game_state::game_state_4x4_binary_4bit::GameState4x4Binary4Bit;
     use crate::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
+    use crate::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
     use crate::game_state::game_state_5x5_struct::GameState5x5Struct;
     use crate::game_state::GameState;
     use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
@@ -73,8 +74,12 @@ mod tests {
         let struct_state_without_all_workers = GameState5x5Struct::from_generic_game_state(&generic_state_without_all_workers);
         let converted_generic_state_without_all_workers_struct = struct_state_without_all_workers.to_generic_game_state();
 
+        let binary_2_state_without_all_workers = GameState5x5BinaryComposite::from_generic_game_state(&generic_state_without_all_workers);
+        let converted_generic_state_without_all_workers_binary_2 = binary_2_state_without_all_workers.to_generic_game_state();
+
         assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers_binary);
         assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers_struct);
+        assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers_binary_2);
 
         for _ in 0..tries {
             let random_generic_state = GenericSantoriniGameState::<5, 5, 2>::generate_random_state();
@@ -85,8 +90,12 @@ mod tests {
             let struct_state = GameState5x5Struct::from_generic_game_state(&random_generic_state);
             let converted_generic_state_struct = struct_state.to_generic_game_state();
 
+            let binary_2_state = GameState5x5BinaryComposite::from_generic_game_state(&random_generic_state);
+            let converted_generic_state_binary_2 = binary_2_state.to_generic_game_state();
+
             assert_eq!(random_generic_state, converted_generic_state_binary);
             assert_eq!(random_generic_state, converted_generic_state_struct);
+            assert_eq!(random_generic_state, converted_generic_state_binary_2);
         }
     }
 

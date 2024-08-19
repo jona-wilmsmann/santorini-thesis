@@ -73,7 +73,7 @@ async fn main() {
     let game_state_5x5 = GS5x5::from_generic_game_state(&generic_game_state_5x5);
 
 
-    let depth = 5;
+    let depth = 4;
 
 
     let start = Instant::now();

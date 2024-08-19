@@ -3,6 +3,7 @@ use santorini_minimax::game_state::{GameState, MinimaxReady};
 use rand::{Rng, SeedableRng};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
+use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::generic_game_state::GenericGameState;
 use santorini_minimax::minimax::minimax;
@@ -67,9 +68,12 @@ fn benchmark_minimax<GS: GameState + MinimaxReady>(name: &str, c: &mut Criterion
 fn criterion_benchmark(c: &mut Criterion) {
     benchmark_game_state::<GameState5x5Binary128bit>("GameState5x5Binary128bit", c);
     benchmark_game_state::<GameState5x5Struct>("GameState5x5Struct", c);
+    benchmark_game_state::<GameState5x5BinaryComposite>("GameState5x5Binary", c);
+
 
     benchmark_minimax::<GameState5x5Binary128bit>("GameState5x5Binary128bit", c);
     benchmark_minimax::<GameState5x5Struct>("GameState5x5Struct", c);
+    benchmark_minimax::<GameState5x5BinaryComposite>("GameState5x5Binary", c);
 }
 
 criterion_group!(benches, criterion_benchmark);
