@@ -40,6 +40,18 @@ fn measure_minimax_and_log_moves<GS: GameState + MinimaxReady + SimplifiedState>
 #[tokio::main]
 async fn main() {
     type GS4x4 = GameState4x4Binary3Bit;
+
+    let num_threads = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let data_folder_path = "/mnt/data/santorini_winner_data_new";
+    //let data_folder_path = "winner_data";
+
+    for block_count in (0..=60).rev() {
+        println!("Starting presolve for block {}...", block_count);
+        presolve_state_winner::<GS4x4, 1>(block_count, num_threads - 4, data_folder_path).await.unwrap();
+    }
+
+    /*
+    type GS4x4 = GameState4x4Binary3Bit;
     type GGS4x4 = <GameState4x4Binary3Bit as GameState>::GenericGameState;
 
     let generic_game_state_4x4 = GGS4x4::new(
@@ -97,6 +109,8 @@ async fn main() {
     println!("5x5");
     println!("Minimax value: {}, took: {:?}", readable_minmax_value(value), duration);
     println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
+
+     */
 
     /*
     type GGS = GenericSantoriniGameState<5, 5, 2>;

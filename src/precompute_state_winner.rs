@@ -10,11 +10,20 @@ use crate::precompute_state_winner::bit_writer::BitWriter;
 
 mod bit_vector;
 mod bit_writer;
+mod asset_valid_bit_count;
 
 const CHUNK_SIZE_BYTES: u64 = 1024;
 
-fn get_chunk_amount(total_count: u64, task_count: u64, task_id: u64) -> u64 {
-    let total_chunk_amount = (total_count + (CHUNK_SIZE_BYTES * 8 - 1)) / (CHUNK_SIZE_BYTES * 8);
+#[repr(u8)]
+enum PresolveResult {
+    PlayerAWinning = 0,
+    PlayerBWinning = 1,
+    Draw = 2,
+}
+
+
+fn get_chunk_amount(total_count: u64, bits_per_entry: u64, task_count: u64, task_id: u64) -> u64 {
+    let total_chunk_amount = (total_count * bits_per_entry + (CHUNK_SIZE_BYTES * 8 - 1)) / (CHUNK_SIZE_BYTES * 8);
 
     let chunks_per_task = total_chunk_amount / task_count;
     let remainder = total_chunk_amount % task_count;
@@ -55,27 +64,58 @@ async fn combine_partial_files(file_paths: Vec<String>, output_file_path: &str) 
     return Ok(());
 }
 
-fn presolve_state<GS: GameState + SimplifiedState + ContinuousBlockId>(state: &GS, parent_bit_vector: &Arc<BitVector>) -> bool {
+fn presolve_state<
+    GS: GameState + SimplifiedState + ContinuousBlockId,
+    const BITS_PER_ENTRY: usize
+>(state: &GS, parent_bit_vector: &Arc<BitVector<BITS_PER_ENTRY>>) -> PresolveResult {
+    let consider_draw: bool = BITS_PER_ENTRY == 2;
+
     let child_states = state.get_children_states();
 
+    let player_a_turn = state.is_player_a_turn();
+
     if child_states.is_empty() {
-        return false;
+        if consider_draw {
+            return PresolveResult::Draw;
+        }
+        return if player_a_turn {
+            PresolveResult::PlayerBWinning
+        } else {
+            PresolveResult::PlayerAWinning
+        }
     }
 
     // If any of the child states are losing for the then active player, then the current state is winning
     for child_state in child_states {
-        if child_state.has_player_a_won() {
-            return true;
+        if player_a_turn {
+            if child_state.has_player_a_won() {
+                return PresolveResult::PlayerAWinning;
+            }
+        } else {
+            if child_state.has_player_b_won() {
+                return PresolveResult::PlayerBWinning;
+            }
         }
-        let flipped_child_state = child_state.get_flipped_state();
-        let simplified_flipped_child_state = flipped_child_state.get_simplified_state();
-        let child_continuous_block_id = simplified_flipped_child_state.get_continuous_block_id();
-        if !parent_bit_vector.get(child_continuous_block_id as usize) {
-            return true;
+        let simplified_child_state = child_state.get_simplified_state();
+        let child_continuous_block_id = simplified_child_state.get_continuous_block_id();
+
+        let child_result = parent_bit_vector.get(child_continuous_block_id as usize);
+        if player_a_turn {
+            if child_result == PresolveResult::PlayerAWinning as u8 {
+                return PresolveResult::PlayerAWinning;
+            }
+        } else {
+            if child_result == PresolveResult::PlayerBWinning as u8 {
+                return PresolveResult::PlayerBWinning;
+            }
         }
     }
 
-    return false;
+    return if player_a_turn {
+        PresolveResult::PlayerBWinning
+    } else {
+        PresolveResult::PlayerAWinning
+    }
 }
 
 async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, total_count: u64, block_count: usize) {
@@ -92,9 +132,16 @@ async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, 
     }
 }
 
+/**
+- BITS_PER_ENTRY = 1 => No draws are considered, if a player cannot move, the other player wins
+- BITS_PER_ENTRY = 2 => Draws are considered, if a player cannot move, the game is a draw
+*/
 pub async fn presolve_state_winner<
-    GS: GameState + SimplifiedState + ContinuousBlockId
+    GS: GameState + SimplifiedState + ContinuousBlockId,
+    const BITS_PER_ENTRY: usize,
 >(block_count: usize, parallel_tasks: usize, data_folder_path: &str) -> Result<()> {
+    assert!(BITS_PER_ENTRY == 1 || BITS_PER_ENTRY == 2);
+
     let continuous_block_id_count = GS::get_continuous_block_id_count(block_count);
     let parent_continuous_block_id_count = GS::get_continuous_block_id_count(block_count + 1);
 
@@ -111,7 +158,7 @@ pub async fn presolve_state_winner<
     let global_solved_count = Arc::new(Mutex::new(0));
 
     for task_index in 0..parallel_tasks {
-        let chunk_amount = get_chunk_amount(continuous_block_id_count, parallel_tasks as u64, task_index as u64);
+        let chunk_amount = get_chunk_amount(continuous_block_id_count, BITS_PER_ENTRY as u64, parallel_tasks as u64, task_index as u64);
 
         let output_file_path = format!("{}/block{}_part{}.bin", data_folder_path, block_count, task_index);
         output_files.push(output_file_path.clone());
@@ -120,19 +167,19 @@ pub async fn presolve_state_winner<
         let global_solved_count = global_solved_count.clone();
 
         tasks.push(tokio::spawn(async move {
-            let mut bit_writer = BitWriter::new(output_file_path).await?;
+            let mut bit_writer = BitWriter::<BITS_PER_ENTRY>::new(output_file_path).await?;
             static UPDATE_INTERVAL: u64 = 100000;
 
             let mut solved_count = 0;
             for chunk_index in 0..chunk_amount {
                 let global_chunk_index = parallel_tasks as u64 * chunk_index + task_index as u64;
-                let id_start = global_chunk_index * CHUNK_SIZE_BYTES * 8;
-                let id_end = ((global_chunk_index + 1) * CHUNK_SIZE_BYTES * 8).min(continuous_block_id_count);
+                let id_start = global_chunk_index * CHUNK_SIZE_BYTES * 8 / BITS_PER_ENTRY as u64;
+                let id_end = ((global_chunk_index + 1) * CHUNK_SIZE_BYTES * 8 / BITS_PER_ENTRY as u64).min(continuous_block_id_count);
 
                 for continuous_block_id in id_start..id_end {
                     let state = GS::from_continuous_block_id(block_count, continuous_block_id);
-                    let winner = presolve_state(&state, &parent_bit_vector);
-                    bit_writer.write_bit(winner).await?;
+                    let winner = presolve_state::<GS, BITS_PER_ENTRY>(&state, &parent_bit_vector);
+                    bit_writer.write_data(winner as u8).await?;
 
                     solved_count += 1;
                     if solved_count % UPDATE_INTERVAL == 0 {

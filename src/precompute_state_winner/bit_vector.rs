@@ -2,11 +2,17 @@ use tokio::fs::File;
 use anyhow::Result;
 use tokio::io::AsyncReadExt;
 
-pub struct BitVector {
+use crate::precompute_state_winner::asset_valid_bit_count::assert_valid_bit_count;
+
+pub struct BitVector<const BITS_PER_ENTRY: usize> {
     data: Vec<u8>,
 }
 
-impl BitVector {
+impl<const BITS_PER_ENTRY: usize> BitVector<BITS_PER_ENTRY> {
+    const VALID_BIT_COUNT_ASSERTION: () = assert_valid_bit_count(BITS_PER_ENTRY);
+    const CHUNKS_PER_BYTE: usize = 8 / BITS_PER_ENTRY;
+    const BITMASK: u8 = (1u8 << BITS_PER_ENTRY).wrapping_sub(1);
+
     pub async fn from_file(filename: &str) -> Result<Self> {
         let mut file = File::open(filename).await?;
         let mut data = Vec::new();
@@ -22,9 +28,10 @@ impl BitVector {
         }
     }
 
-    pub fn get(&self, index: usize) -> bool {
-        let byte_index = index / 8;
-        let bit_index = index % 8;
-        return (self.data[byte_index] & (1 << bit_index)) != 0
+    pub fn get(&self, index: usize) -> u8 {
+        let byte_index = index / Self::CHUNKS_PER_BYTE;
+        let bit_index = (index * BITS_PER_ENTRY) % 8;
+        let byte = self.data[byte_index];
+        return (byte >> bit_index) & Self::BITMASK;
     }
 }

@@ -1,16 +1,19 @@
 use tokio::fs::File;
 use tokio::io::{AsyncWriteExt, BufWriter};
 use anyhow::Result;
+use crate::precompute_state_winner::asset_valid_bit_count::assert_valid_bit_count;
 
 const BUFFER_SIZE: usize = 1024;
 
-pub struct BitWriter {
+pub struct BitWriter<const BITS_PER_ENTRY: usize> {
     writer: BufWriter<File>,
     buffer: [u8; BUFFER_SIZE],
     buffer_pos: usize,
 }
 
-impl BitWriter {
+impl<const BITS_PER_ENTRY: usize> BitWriter<BITS_PER_ENTRY> {
+    const VALID_BIT_COUNT_ASSERTION: () = assert_valid_bit_count(BITS_PER_ENTRY);
+
     pub async fn new(file_path: String) -> Result<Self> {
         let file = File::create(file_path).await?;
         Ok(BitWriter {
@@ -20,13 +23,15 @@ impl BitWriter {
         })
     }
 
-    pub async fn write_bit(&mut self, bit: bool) -> Result<()> {
-        if bit {
+    pub async fn write_data(&mut self, data: u8) -> Result<()> {
+        debug_assert!(BITS_PER_ENTRY == 8 || data < (1 << BITS_PER_ENTRY));
+
+        if data != 0 {
             let byte_index = self.buffer_pos / 8;
             let bit_index = self.buffer_pos % 8;
-            self.buffer[byte_index] |= 1 << bit_index;
+            self.buffer[byte_index] |= data << bit_index;
         }
-        self.buffer_pos += 1;
+        self.buffer_pos += BITS_PER_ENTRY;
 
         if self.buffer_pos == BUFFER_SIZE * 8 {
             self.flush_buffer().await?;
