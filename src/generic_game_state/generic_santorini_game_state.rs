@@ -62,6 +62,9 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
             }
         }
 
+        // TODO: At the beginning of the game, player A must place all their workers, then player B must place all their workers
+        // The current implementation has them taking alternating turns, which is incorrect.
+
         if player_a_worker_count == 0 && player_b_worker_count == 0 {
             // Beginning of the game, no workers are placed
             ensure!(player_a_turn, "At the beginning of the game, player A must place the first worker");

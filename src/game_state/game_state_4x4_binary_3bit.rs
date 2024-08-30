@@ -648,15 +648,22 @@ impl ContinuousId for GameState4x4Binary3Bit {
         let player_b_position = matching_variant.player_b_positions[player_b_index] as u64;
 
         let mut raw_value = 0;
+        let mut block_count = 0;
         for i in (0..16).rev() {
             let options = if i == player_a_position || i == player_b_position { 3 } else { 5 };
             let height = continuous_id % options as u64;
+            block_count += height;
             continuous_id /= options as u64;
             raw_value = raw_value << 3 | height;
         }
 
         raw_value |= player_a_position << 48;
         raw_value |= player_b_position << 52;
+
+        if block_count % 2 == 0 {
+            // Player A's turn
+            raw_value |= 1 << 61;
+        }
 
         // Winning bits don't need to be checked, because the continuous mapping does not map to states where the players are on height 3
 
@@ -1105,13 +1112,20 @@ impl ContinuousBlockId for GameState4x4Binary3Bit {
             }
         }
 
+        let mut block_count = 0;
         let mut raw_value = 0;
         for height in position_heights.iter().rev() {
+            block_count += *height;
             raw_value = raw_value << 3 | *height as u64;
         }
 
         raw_value |= (player_a_position as u64) << 48;
         raw_value |= (player_b_position as u64) << 52;
+
+        if block_count % 2 == 0 {
+            // Player A's turn
+            raw_value |= 1 << 61;
+        }
 
         // Winning bits don't need to be checked, because the continuous mapping does not map to states where the players are on height 3
         return Self(raw_value);
