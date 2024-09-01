@@ -67,14 +67,14 @@ async fn combine_partial_files(file_paths: Vec<String>, output_file_path: &str) 
 fn presolve_state<
     GS: GameState + SimplifiedState + ContinuousBlockId,
     const BITS_PER_ENTRY: usize
->(state: &GS, parent_bit_vector: &Arc<BitVector<BITS_PER_ENTRY>>) -> PresolveResult {
+>(state: &GS, parent_bit_vector: &Arc<BitVector<BITS_PER_ENTRY>>, reusable_child_states: &mut Vec<GS>) -> PresolveResult {
     let consider_draw: bool = BITS_PER_ENTRY == 2;
 
-    let child_states = state.get_children_states();
+    state.get_children_states_reuse_vec(reusable_child_states);
 
     let player_a_turn = state.is_player_a_turn();
 
-    if child_states.is_empty() {
+    if reusable_child_states.is_empty() {
         if consider_draw {
             return PresolveResult::Draw;
         }
@@ -86,7 +86,7 @@ fn presolve_state<
     }
 
     // If any of the child states are losing for the then active player, then the current state is winning
-    for child_state in child_states {
+    for child_state in reusable_child_states {
         if player_a_turn {
             if child_state.has_player_a_won() {
                 return PresolveResult::PlayerAWinning;
@@ -170,6 +170,7 @@ pub async fn presolve_state_winner<
             let mut bit_writer = BitWriter::<BITS_PER_ENTRY>::new(output_file_path).await?;
             static UPDATE_INTERVAL: u64 = 100000;
 
+            let mut reusable_child_states = Vec::new();
             let mut solved_count = 0;
             for chunk_index in 0..chunk_amount {
                 let global_chunk_index = parallel_tasks as u64 * chunk_index + task_index as u64;
@@ -178,7 +179,7 @@ pub async fn presolve_state_winner<
 
                 for continuous_block_id in id_start..id_end {
                     let state = GS::from_continuous_block_id(block_count, continuous_block_id);
-                    let winner = presolve_state::<GS, BITS_PER_ENTRY>(&state, &parent_bit_vector);
+                    let winner = presolve_state::<GS, BITS_PER_ENTRY>(&state, &parent_bit_vector, &mut reusable_child_states);
                     bit_writer.write_data(winner as u8).await?;
 
                     solved_count += 1;

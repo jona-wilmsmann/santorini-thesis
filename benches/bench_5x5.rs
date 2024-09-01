@@ -27,7 +27,7 @@ fn benchmark_game_state<GS: GameState>(name: &str, c: &mut Criterion) {
     group.bench_function("generate 1,000,000 children states with vec reuse", |b| b.iter(|| {
         let mut vec = Vec::with_capacity(32);
         for state in &random_states {
-            vec = black_box(state.get_children_states_reuse_vec(vec));
+            black_box(state.get_children_states_reuse_vec(&mut vec));
         }
     }));
 

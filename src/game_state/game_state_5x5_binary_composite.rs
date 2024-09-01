@@ -247,14 +247,15 @@ impl GameState for GameState5x5BinaryComposite {
     }
 
     fn get_children_states(&self) -> Vec<Self> {
-        return self.get_children_states_reuse_vec(Vec::with_capacity(64));
+        let mut possible_next_states = Vec::with_capacity(64);
+        self.get_children_states_reuse_vec(&mut possible_next_states);
+        return possible_next_states;
     }
 
-    fn get_children_states_reuse_vec(&self, vec: Vec<Self>) -> Vec<Self> {
+    fn get_children_states_reuse_vec(&self, possible_next_states: &mut Vec<Self>) {
         debug_assert!(!self.has_player_a_won());
         debug_assert!(!self.has_player_b_won());
 
-        let mut possible_next_states = vec;
         possible_next_states.clear();
 
         let is_player_a_turn = self.is_player_a_turn();
@@ -291,7 +292,7 @@ impl GameState for GameState5x5BinaryComposite {
                 }
             }
 
-            return possible_next_states;
+            return;
         }
 
         // All workers are placed, so the next states are all possible worker moves
@@ -364,8 +365,6 @@ impl GameState for GameState5x5BinaryComposite {
                 }
             }
         }
-
-        return possible_next_states;
     }
 
     fn get_flipped_state(&self) -> Self {

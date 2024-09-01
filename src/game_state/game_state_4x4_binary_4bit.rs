@@ -131,11 +131,12 @@ impl GameState for GameState4x4Binary4Bit {
     }
 
     fn get_children_states(&self) -> Vec<Self> {
-        return self.get_children_states_reuse_vec(Vec::with_capacity(32));
+        let mut possible_next_states = Vec::with_capacity(32);
+        self.get_children_states_reuse_vec(&mut possible_next_states);
+        return possible_next_states;
     }
 
-    fn get_children_states_reuse_vec(&self, vec: Vec<Self>) -> Vec<Self> {
-        let mut possible_next_states = vec;
+    fn get_children_states_reuse_vec(&self, possible_next_states: &mut Vec<Self>) {
         possible_next_states.clear();
 
         let player_a_bit = self.0 & Self::PLAYER_A_MASK;
@@ -202,8 +203,6 @@ impl GameState for GameState4x4Binary4Bit {
             valid_movement_neighbors_mask >>= (new_movement_positions + 1) * 4;
             seen_movement_positions += new_movement_positions + 1;
         }
-
-        return possible_next_states;
     }
 
     fn get_flipped_state(&self) -> Self {
