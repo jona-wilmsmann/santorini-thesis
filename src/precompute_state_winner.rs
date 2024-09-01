@@ -85,7 +85,12 @@ fn presolve_state<
         }
     }
 
-    // If any of the child states are losing for the then active player, then the current state is winning
+    // If the active player has at least one child state that is winning, the active player wins
+    // If the active player has at least one child state that is a draw, the game is a draw
+    // If neither of the above conditions are met, the other player wins
+
+    let mut can_force_draw = false;
+
     for child_state in reusable_child_states {
         if player_a_turn {
             if child_state.has_player_a_won() {
@@ -109,6 +114,13 @@ fn presolve_state<
                 return PresolveResult::PlayerBWinning;
             }
         }
+        if consider_draw && !can_force_draw && child_result == PresolveResult::Draw as u8 {
+            can_force_draw = true;
+        }
+    }
+
+    if can_force_draw {
+        return PresolveResult::Draw;
     }
 
     return if player_a_turn {
