@@ -1,6 +1,9 @@
 use std::fmt;
 use std::fmt::Formatter;
 use anyhow::{ensure, Result};
+use plotters::element::{ComposedElement, Drawable};
+use plotters::prelude::*;
+use plotters::style::text_anchor::{HPos, Pos, VPos};
 use crate::generic_game_state::GenericGameState;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd)]
@@ -19,13 +22,7 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> f
             for column in 0..COLUMNS {
                 let tile_id = row * COLUMNS + column;
                 let height = self.tile_heights[row][column];
-                let character = if self.player_a_workers.contains(&(tile_id as u8)) {
-                    'A'
-                } else if self.player_b_workers.contains(&(tile_id as u8)) {
-                    'B'
-                } else {
-                    ' '
-                };
+                let character = self.get_character_on_tile(tile_id);
                 write!(f, "| {}{} ", height, character)?;
             }
             write!(f, "|\n")?;
@@ -122,6 +119,101 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
 
     pub fn get_tile_height(&self, tile_id: usize) -> u8 {
         return self.tile_heights[tile_id / COLUMNS][tile_id % COLUMNS];
+    }
+
+    pub fn get_character_on_tile(&self, tile_id: usize) -> char {
+        return if self.player_a_workers.contains(&(tile_id as u8)) {
+            'A'
+        } else if self.player_b_workers.contains(&(tile_id as u8)) {
+            'B'
+        } else {
+            ' '
+        };
+    }
+}
+
+
+impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
+    pub fn draw_image(&self, path: &str) -> Result<()> {
+        let pixels_per_tile = 100;
+        let padding_between_tiles = 5;
+        let border_width = 5;
+
+        let width = COLUMNS * pixels_per_tile + (COLUMNS + 1) * padding_between_tiles;
+        let height = ROWS * pixels_per_tile + (ROWS + 1) * padding_between_tiles;
+
+        let root = SVGBackend::new(path, (width as u32, height as u32)).into_drawing_area();
+
+        for x in 0..ROWS {
+            for y in 0..COLUMNS {
+                let tile_id = x * COLUMNS + y;
+                let height = self.get_tile_height(tile_id);
+                let character = self.get_character_on_tile(tile_id);
+
+                // Adjust x and y for drawing rectangles
+                let rect_x = (y * pixels_per_tile + (y + 1) * padding_between_tiles) as i32;
+                let rect_y = ((ROWS - x - 1) * pixels_per_tile + (ROWS - x) * padding_between_tiles) as i32;
+
+                let color = match height {
+                    0 => RGBColor(255, 255, 255),
+                    1 => RGBColor(224, 194, 157),
+                    2 => RGBColor(224, 178, 123),
+                    3 => RGBColor(214, 153, 77),
+                    _ => RGBColor(110, 102, 93),
+                };
+
+                let border_color = match character {
+                    'A' => RGBColor(50, 59, 237),
+                    'B' => RGBColor(237, 50, 75),
+                    _ => RGBColor(0, 0, 0),
+                };
+
+                let text_color = BLACK;
+
+                // Outer rectangle (border)
+                let outer_rect = Rectangle::new(
+                    [(rect_x, rect_y), (rect_x + pixels_per_tile as i32, rect_y + pixels_per_tile as i32)],
+                    ShapeStyle {
+                        color: border_color.to_rgba(),
+                        filled: true,
+                        stroke_width: 1,
+                    },
+                );
+
+                // Inner filled rectangle
+                let inner_rect = Rectangle::new(
+                    [(rect_x + border_width as i32, rect_y + border_width as i32), (rect_x + (pixels_per_tile - border_width) as i32, rect_y + (pixels_per_tile - border_width) as i32)],
+                    ShapeStyle {
+                        color: color.to_rgba(),
+                        filled: true,
+                        stroke_width: 0,
+                    },
+                );
+
+                // Height text in the center
+                let height_text = Text::new(
+                    format!("{}", height),
+                    (rect_x + (pixels_per_tile / 2) as i32, rect_y + (pixels_per_tile / 2) as i32),
+                    ("Arial", 40.0).into_font().color(&text_color).pos(Pos::new(HPos::Center, VPos::Center)),
+                );
+
+                // Character text in the center (if any)
+                let char_text = Text::new(
+                    format!("{}", character),
+                    (rect_x + (pixels_per_tile / 2) as i32, rect_y + (pixels_per_tile / 2) as i32 + 25),
+                    ("Arial", 30.0).into_font().color(&text_color).pos(Pos::new(HPos::Center, VPos::Center)),
+                );
+
+                root.draw(&outer_rect)?;
+                root.draw(&inner_rect)?;
+                root.draw(&height_text)?;
+                root.draw(&char_text)?;
+            }
+        }
+
+        root.present()?;
+
+        return Ok(());
     }
 }
 

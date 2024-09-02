@@ -14,6 +14,7 @@ fnv = "1.0.7"
 num-format = "0.4.4"
 csv = "1.1"
 chrono = "0.4.38"
+plotters = "0.3.6"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }
