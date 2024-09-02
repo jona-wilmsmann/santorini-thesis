@@ -32,14 +32,14 @@ fn get_chunk_amount(total_count: u64, bits_per_entry: u64, task_count: u64, task
         chunks_per_task + 1
     } else {
         chunks_per_task
-    }
+    };
 }
 
 async fn combine_partial_files(file_paths: Vec<String>, output_file_path: &str) -> Result<()> {
     let output_file = File::create(output_file_path).await?;
     let mut writer = BufWriter::new(output_file);
 
-    let mut files = Vec::new();
+    let mut files = Vec::with_capacity(file_paths.len());
     for file_path in &file_paths {
         let file = File::open(file_path.clone()).await?;
         files.push(file);
@@ -82,7 +82,7 @@ fn presolve_state<
             PresolveResult::PlayerBWinning
         } else {
             PresolveResult::PlayerAWinning
-        }
+        };
     }
 
     // If the active player has at least one child state that is winning, the active player wins
@@ -127,7 +127,7 @@ fn presolve_state<
         PresolveResult::PlayerBWinning
     } else {
         PresolveResult::PlayerAWinning
-    }
+    };
 }
 
 async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, total_count: u64, block_count: usize) {
@@ -137,7 +137,7 @@ async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, 
     *solved_count += newly_solved;
     let new_percentage = *solved_count * 100 / total_count;
 
-    if new_percentage != previous_percentage{
+    if new_percentage != previous_percentage {
         let local_time = Local::now();
         let formatted_time = local_time.format("%Y-%m-%d %H:%M:%S");
         println!("({}) Block {} - Progress: {}% of {} states", formatted_time, block_count, new_percentage, total_count.to_formatted_string(&num_format::Locale::en));
@@ -147,7 +147,7 @@ async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, 
 /**
 - BITS_PER_ENTRY = 1 => No draws are considered, if a player cannot move, the other player wins
 - BITS_PER_ENTRY = 2 => Draws are considered, if a player cannot move, the game is a draw
-*/
+ */
 pub async fn presolve_state_winner<
     GS: GameState + SimplifiedState + ContinuousBlockId,
     const BITS_PER_ENTRY: usize,
@@ -158,7 +158,10 @@ pub async fn presolve_state_winner<
     let parent_continuous_block_id_count = GS::get_continuous_block_id_count(block_count + 1);
 
     let parent_bit_vector = if parent_continuous_block_id_count != 0 {
-        let bit_vector = BitVector::from_file(&format!("{}/block{}_{}-{}.bin", data_folder_path, block_count + 1, 0, parent_continuous_block_id_count - 1)).await?;
+        let bit_vector = BitVector::from_file_with_expected_length(
+            &format!("{}/block{}_{}-{}.bin", data_folder_path, block_count + 1, 0, parent_continuous_block_id_count - 1),
+            (parent_continuous_block_id_count as usize * BITS_PER_ENTRY + 7) / 8,
+        ).await?;
         Arc::new(bit_vector)
     } else {
         Arc::new(BitVector::new_empty())

@@ -14,18 +14,22 @@ impl<const BITS_PER_ENTRY: usize> BitVector<BITS_PER_ENTRY> {
     const BITMASK: u8 = (1u8 << BITS_PER_ENTRY).wrapping_sub(1);
 
     pub async fn from_file(filename: &str) -> Result<Self> {
+        return Self::from_file_with_expected_length(filename, 0).await;
+    }
+
+    pub async fn from_file_with_expected_length(filename: &str, expected_length_bytes: usize) -> Result<Self> {
         let mut file = File::open(filename).await?;
-        let mut data = Vec::new();
+        let mut data = Vec::with_capacity(expected_length_bytes);
         file.read_to_end(&mut data).await?;
-        Ok(BitVector {
+        return Ok(BitVector {
             data
-        })
+        });
     }
 
     pub fn new_empty() -> Self {
-        BitVector {
+        return BitVector {
             data: Vec::new()
-        }
+        };
     }
 
     pub fn get(&self, index: usize) -> u8 {
