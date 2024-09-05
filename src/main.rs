@@ -9,10 +9,13 @@ use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binar
 use santorini_minimax::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
+use santorini_minimax::generic_game_state::GenericGameState;
 use santorini_minimax::minimax::minimax_cache::MinimaxCache;
 use santorini_minimax::minimax::{minimax, readable_minmax_value};
 use santorini_minimax::play_game::play_game;
 use santorini_minimax::precompute_state_winner::presolve_state_winner;
+use santorini_minimax::stats::game_states_by_block_count::GameStatesByBlockCount;
+use santorini_minimax::stats::StatGenerator;
 use santorini_minimax::strategy::console_input_strategy::ConsoleInputStrategy;
 use santorini_minimax::strategy::random_strategy::RandomStrategy;
 
@@ -39,16 +42,63 @@ fn measure_minimax_and_log_moves<GS: GameState + MinimaxReady + SimplifiedState>
 
 #[tokio::main]
 async fn main() {
+    let game_state_stats = GameStatesByBlockCount::new(25, 2);
+
+    //let path = game_state_stats.gather_and_store_data().unwrap();
+    //println!("Stored data at: {}", path);
+
+    let most_recent_data_file = game_state_stats.get_most_recent_data_file().unwrap();
+    let data = game_state_stats.get_data(&most_recent_data_file).unwrap();
+    //println!("Data: {:?}", data);
+
+    game_state_stats.generate_graph_from_most_recent_data().unwrap();
+
+    /*
     type GS4x4 = GameState4x4Binary3Bit;
 
     let num_threads = std::thread::available_parallelism().map_or(1, |n| n.get());
     let data_folder_path = "/mnt/data/santorini_winner_data_new";
+    let data_folder_path_draw = "/mnt/data/santorini_winner_data_draw";
     //let data_folder_path = "winner_data";
+
+    for block_count in (0..=60).rev() {
+        println!("Starting draw presolve for block {}...", block_count);
+        presolve_state_winner::<GS4x4, 2>(block_count, num_threads - 4, data_folder_path_draw).await.unwrap();
+    }
 
     for block_count in (0..=60).rev() {
         println!("Starting presolve for block {}...", block_count);
         presolve_state_winner::<GS4x4, 1>(block_count, num_threads - 4, data_folder_path).await.unwrap();
     }
+
+     */
+
+    /*
+    type GS4x4 = GameState4x4Binary3Bit;
+    type GGS4x4 = <GameState4x4Binary3Bit as GameState>::GenericGameState;
+
+    let generic_game_state_4x4 = GGS4x4::new(
+        [0],
+        [15],
+        [
+            [0, 1, 2, 2],
+            [1, 1, 3, 0],
+            [0, 2, 4, 2],
+            [0, 1, 4, 0],
+        ],
+        true,
+    ).unwrap();
+
+    generic_game_state_4x4.draw_image("test.svg").unwrap();
+
+    type GS5x5 = GameState5x5Struct;
+    type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
+
+    let generic_game_state_5x5 = GGS5x5::generate_random_state_with_blocks(15);
+
+    generic_game_state_5x5.draw_image("test2.svg").unwrap();
+
+     */
 
     /*
     type GS4x4 = GameState4x4Binary3Bit;
@@ -158,17 +208,6 @@ async fn main() {
         println!("Player 2 wins!");
     }
      */
-
-    /*
-    let num_threads = std::thread::available_parallelism().map_or(1, |n| n.get());
-    //let data_folder_path = "/mnt/data/santorini_winner_data";
-    let data_folder_path = "winner_data";
-
-    for block_count in (53..=60).rev() {
-        println!("Starting presolve for block {}...", block_count);
-        presolve_state_winner::<GS>(block_count, num_threads - 4, data_folder_path).await.unwrap();
-    }
-    */
 
 
     /*

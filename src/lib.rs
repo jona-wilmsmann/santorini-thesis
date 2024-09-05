@@ -8,3 +8,4 @@ pub mod measurements;
 pub mod precompute_state_winner;
 pub mod strategy;
 pub mod play_game;
+pub mod stats;
