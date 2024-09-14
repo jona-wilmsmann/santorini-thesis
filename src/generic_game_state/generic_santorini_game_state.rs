@@ -140,7 +140,7 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
         let border_width = 5;
 
         let width = COLUMNS * pixels_per_tile + (COLUMNS + 1) * padding_between_tiles;
-        let height = ROWS * pixels_per_tile + (ROWS + 1) * padding_between_tiles;
+        let height = ROWS * pixels_per_tile + (ROWS + 1) * padding_between_tiles + 50;
 
         let root = SVGBackend::new(path, (width as u32, height as u32)).into_drawing_area();
 
@@ -210,6 +210,24 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
                 root.draw(&char_text)?;
             }
         }
+
+        // Draw white box behind text
+        let text_background = Rectangle::new(
+            [(150, height as i32 - 45), (width as i32 - 150, height as i32 - 5)],
+            ShapeStyle {
+                color: RGBColor(255, 255, 255).to_rgba(),
+                filled: true,
+                stroke_width: 0,
+            },
+        );
+        root.draw(&text_background)?;
+        // At the bottom, display the current player's turn
+        let text = Text::new(
+            format!("Turn: Player {}", if self.player_a_turn { "A" } else { "B" }),
+            (width as i32 / 2, height as i32 - 25),
+            ("Arial", 40.0).into_font().color(&BLACK).pos(Pos::new(HPos::Center, VPos::Center)),
+        );
+        root.draw(&text)?;
 
         root.present()?;
 

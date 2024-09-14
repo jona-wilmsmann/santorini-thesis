@@ -15,6 +15,7 @@ pub struct GameStatesByBlockCountData {
     pub game_states_by_block_count: Vec<u128>,
 }
 
+#[derive(Debug)]
 struct BlockConfiguration {
     height_4_tiles: usize,
     height_3_tiles: usize,
@@ -74,15 +75,35 @@ impl StatGenerator for GameStatesByBlockCount {
 
             for block_configuration in block_configurations {
                 let worker_fields = block_configuration.height_2_tiles + block_configuration.height_1_tiles + block_configuration.height_0_tiles;
-                if worker_fields < self.workers_per_player * 2 {
-                    continue;
+
+                let worker_position_options;
+                if worker_fields >= self.workers_per_player * 2 {
+                    worker_position_options = calculate_binomial_coefficient(worker_fields as u64, self.workers_per_player as u64) *
+                        calculate_binomial_coefficient((worker_fields - self.workers_per_player) as u64, self.workers_per_player as u64);
+                } else {
+                    worker_position_options = 0;
                 }
-                let worker_position_options = calculate_binomial_coefficient(worker_fields as u64, self.workers_per_player as u64) * calculate_binomial_coefficient((worker_fields - self.workers_per_player) as u64, self.workers_per_player as u64);
+
+                /*
+                let terminal_worker_position_options;
+                if block_configuration.height_3_tiles != 0 && worker_fields > self.workers_per_player * 2 - 1 {
+                    terminal_worker_position_options = block_configuration.height_3_tiles as u64 *
+                        ((calculate_binomial_coefficient(worker_fields as u64, self.workers_per_player as u64 - 1) *
+                            calculate_binomial_coefficient((worker_fields - self.workers_per_player + 1) as u64, self.workers_per_player as u64))
+                            + (calculate_binomial_coefficient(worker_fields as u64, self.workers_per_player as u64) *
+                            calculate_binomial_coefficient((worker_fields - self.workers_per_player) as u64, self.workers_per_player as u64 - 1)));
+                } else {
+                    terminal_worker_position_options = 0;
+                }
+                */
+                let terminal_worker_position_options = 0;
+
                 let height_options = calculate_binomial_coefficient(self.tiles as u64, block_configuration.height_4_tiles as u64) *
                     calculate_binomial_coefficient((self.tiles - block_configuration.height_4_tiles) as u64, block_configuration.height_3_tiles as u64) *
                     calculate_binomial_coefficient((self.tiles - block_configuration.height_4_tiles - block_configuration.height_3_tiles) as u64, block_configuration.height_2_tiles as u64) *
                     calculate_binomial_coefficient((self.tiles - block_configuration.height_4_tiles - block_configuration.height_3_tiles - block_configuration.height_2_tiles) as u64, block_configuration.height_1_tiles as u64);
-                total_options += worker_position_options as u128 * height_options as u128;
+
+                total_options += (worker_position_options as u128 + terminal_worker_position_options as u128) * height_options as u128;
             }
 
             game_states_by_block_count[block_count] = total_options;
@@ -101,7 +122,7 @@ impl StatGenerator for GameStatesByBlockCount {
         // Log scale
 
         let log_graph_path = format!("{}/{}-log.svg", output_folder_path, data_time);
-        let root_log = SVGBackend::new(&log_graph_path, (1024, 768)).into_drawing_area();
+        let root_log = SVGBackend::new(&log_graph_path, (1024, 360)).into_drawing_area();
 
         root_log.fill(&WHITE)?;
 
@@ -136,7 +157,7 @@ impl StatGenerator for GameStatesByBlockCount {
         // Linear scale
 
         let lin_graph_path = format!("{}/{}-lin.svg", output_folder_path, data_time);
-        let root_lin = SVGBackend::new(&lin_graph_path, (1024, 768)).into_drawing_area();
+        let root_lin = SVGBackend::new(&lin_graph_path, (1024, 360)).into_drawing_area();
 
         root_lin.fill(&WHITE)?;
 

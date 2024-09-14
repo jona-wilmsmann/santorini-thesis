@@ -18,6 +18,7 @@ use santorini_minimax::stats::game_states_by_block_count::GameStatesByBlockCount
 use santorini_minimax::stats::StatGenerator;
 use santorini_minimax::strategy::console_input_strategy::ConsoleInputStrategy;
 use santorini_minimax::strategy::random_strategy::RandomStrategy;
+use anyhow::Result;
 
 /*
 fn measure_minimax_and_log_moves<GS: GameState + MinimaxReady + SimplifiedState>(game_state: &GS, depth: usize) {
@@ -40,18 +41,56 @@ fn measure_minimax_and_log_moves<GS: GameState + MinimaxReady + SimplifiedState>
 }
  */
 
+fn store_game_state_image<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize>
+(game_state: &GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER>, name: &str) -> Result<()> {
+    let folder_path = "stats/game_states/";
+    std::fs::create_dir_all(folder_path.clone())?;
+    let image_path = format!("{}/{}.svg", folder_path, name);
+    game_state.draw_image(image_path.as_str())?;
+    return Ok(());
+}
+
 #[tokio::main]
 async fn main() {
-    let game_state_stats = GameStatesByBlockCount::new(25, 2);
+    type GS5x5 = GameState5x5Struct;
+    type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
 
-    //let path = game_state_stats.gather_and_store_data().unwrap();
-    //println!("Stored data at: {}", path);
+    let mut max_children = 0;
+    let mut max_children_state = None;
+    for worker_a_1 in 0..25 {
+        for worker_a_2 in 0..25 {
+            for worker_b_1 in 0..25 {
+                for worker_b_2 in 0..25 {
+                    if worker_a_1 == worker_a_2 || worker_a_1 == worker_b_1 || worker_a_1 == worker_b_2 || worker_a_2 == worker_b_1 || worker_a_2 == worker_b_2 || worker_b_1 == worker_b_2 {
+                        continue;
+                    }
+                    let generic_game_state = GGS5x5::new(
+                        [worker_a_1, worker_a_2],
+                        [worker_b_1, worker_b_2],
+                        [
+                            [0, 0, 0, 0, 0],
+                            [0, 0, 0, 0, 0],
+                            [0, 0, 0, 0, 0],
+                            [0, 0, 0, 0, 0],
+                            [0, 0, 0, 0, 0]
+                        ],
+                        true,
+                    ).unwrap();
+                    let game_state = GS5x5::from_generic_game_state(&generic_game_state);
+                    let children_number = game_state.get_children_states().len();
+                    if children_number > max_children {
+                        max_children = children_number;
+                        max_children_state = Some(generic_game_state);
+                    }
+                }
+            }
+        }
+    }
+    let max_children_state = max_children_state.unwrap();
 
-    let most_recent_data_file = game_state_stats.get_most_recent_data_file().unwrap();
-    let data = game_state_stats.get_data(&most_recent_data_file).unwrap();
-    //println!("Data: {:?}", data);
-
-    game_state_stats.generate_graph_from_most_recent_data().unwrap();
+    println!("Max children: {}", max_children);
+    println!("State: {}", max_children_state);
+    store_game_state_image(&max_children_state, "max_children").unwrap();
 
     /*
     type GS4x4 = GameState4x4Binary3Bit;
