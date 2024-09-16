@@ -91,6 +91,8 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
 
 
         let mut worker_tiles = Vec::with_capacity(WORKERS_PER_PLAYER * 2);
+
+        let mut worker_on_height_3_tile = false;
         for worker_tile in player_a_workers.iter().chain(player_b_workers.iter()) {
             if *worker_tile == Self::WORKER_NOT_PLACED {
                 continue;
@@ -98,8 +100,14 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
 
             ensure!(*worker_tile < (ROWS * COLUMNS) as u8, "Worker tile {} is out of bounds, must be less than {}", worker_tile, ROWS * COLUMNS);
 
-            ensure!(tile_heights[*worker_tile as usize / COLUMNS][*worker_tile as usize % COLUMNS] < 4, "Worker tile {} must have a height of 0", worker_tile);
+            let worker_tile_height = tile_heights[*worker_tile as usize / COLUMNS][*worker_tile as usize % COLUMNS];
 
+            ensure!(worker_tile_height < 4, "Worker tile {} cannot have a height of 4", worker_tile);
+
+            if worker_tile_height == 3 {
+                ensure!(!worker_on_height_3_tile, "Only one worker can be on a height 3 tile");
+                worker_on_height_3_tile = true;
+            }
 
             ensure!(!worker_tiles.contains(worker_tile), "Worker tiles must be unique, {} is used multiple times", worker_tile);
             worker_tiles.push(*worker_tile);
@@ -301,7 +309,7 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
         let mut tile_max_heights = [[4; COLUMNS]; ROWS];
         for i in 0..WORKERS_PER_PLAYER {
             tile_max_heights[player_a_workers[i] as usize / COLUMNS][player_a_workers[i] as usize % COLUMNS] = 2;
-            tile_max_heights[player_b_workers[i] as usize / COLUMNS][player_a_workers[i] as usize % COLUMNS] = 2;
+            tile_max_heights[player_b_workers[i] as usize / COLUMNS][player_b_workers[i] as usize % COLUMNS] = 2;
         }
 
         let mut current_block_count = 0;
