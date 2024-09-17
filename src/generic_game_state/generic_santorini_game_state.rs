@@ -302,6 +302,8 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
     }
 
     fn generate_random_state_with_blocks_rng<RNG: rand::Rng>(rng: &mut RNG, block_amount: usize) -> Self {
+        assert!(block_amount <= ROWS * COLUMNS * 4 - WORKERS_PER_PLAYER * 2, "Block amount must be less than or equal to the total amount of blocks minus the workers");
+
         let mut tile_heights = [[0; COLUMNS]; ROWS];
 
         let (player_a_workers, player_b_workers) = GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::get_random_worker_positions(rng);

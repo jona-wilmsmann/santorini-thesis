@@ -6,6 +6,7 @@ use crate::stats::StatGenerator;
 pub struct GameStatesByBlockCount {
     tiles: usize,
     workers_per_player: usize,
+    graph_suffix: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -25,10 +26,11 @@ struct BlockConfiguration {
 }
 
 impl GameStatesByBlockCount {
-    pub fn new(tiles: usize, workers_per_player: usize) -> Self {
+    pub fn new(tiles: usize, workers_per_player: usize, graph_suffix: String) -> Self {
         return GameStatesByBlockCount {
             tiles,
             workers_per_player,
+            graph_suffix,
         };
     }
 
@@ -126,8 +128,10 @@ impl StatGenerator for GameStatesByBlockCount {
 
         root_log.fill(&WHITE)?;
 
+        let caption_log = format!("Game states by block count (Logarithmic){}", self.graph_suffix);
+
         let mut chart_log = ChartBuilder::on(&root_log)
-            .caption("Game states by block count (Logarithmic)", ("sans-serif", 50).into_font())
+            .caption(caption_log, ("sans-serif", 50).into_font())
             .margin(5)
             .x_label_area_size(40)
             .y_label_area_size(60)
@@ -161,8 +165,10 @@ impl StatGenerator for GameStatesByBlockCount {
 
         root_lin.fill(&WHITE)?;
 
+        let caption_lin = format!("Game states by block count (Linear){}", self.graph_suffix);
+
         let mut chart_lin = ChartBuilder::on(&root_lin)
-            .caption("Game states by block count (Linear)", ("sans-serif", 50).into_font())
+            .caption(caption_lin, ("sans-serif", 50).into_font())
             .margin(5)
             .x_label_area_size(40)
             .y_label_area_size(60)

@@ -54,12 +54,20 @@ fn store_game_state_image<const ROWS: usize, const COLUMNS: usize, const WORKERS
 #[tokio::main]
 async fn main() {
     type GS5x5 = GameState5x5Struct;
+    type GS4x4 = GameState4x4Binary3Bit;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
 
-    let branching_factor_stat = BranchingFactorByBlockCount::<GS5x5>::new("5x5".to_string(), 92, 100, 1000000);
+    let branching_factor_stat = BranchingFactorByBlockCount::<GS4x4>::new("4x4".to_string(), " (4x4 Santorini)".to_string(), 60, 64, 1000000);
 
     //branching_factor_stat.gather_and_store_data().unwrap();
-    branching_factor_stat.generate_graph_from_most_recent_data().unwrap()
+    branching_factor_stat.generate_graph_from_most_recent_data().unwrap();
+
+    let game_states_stat = GameStatesByBlockCount::new(16, 1, " (4x4 Santorini)".to_string());
+    let data = game_states_stat.gather_data().unwrap();
+    let sum: u128 = data.game_states_by_block_count.iter().sum();
+    println!("Sum: {}", sum);
+    //game_states_stat.gather_and_store_data().unwrap();
+    game_states_stat.generate_graph_from_most_recent_data().unwrap();
 
     /*
     type GS4x4 = GameState4x4Binary3Bit;

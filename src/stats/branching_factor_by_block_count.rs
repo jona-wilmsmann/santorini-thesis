@@ -7,6 +7,7 @@ use crate::stats::StatGenerator;
 pub struct BranchingFactorByBlockCount<GS: GameState> {
     _marker: std::marker::PhantomData<GS>,
     game_name: String,
+    graph_suffix: String,
     max_block_count: usize,
     max_graph_block_count: usize,
     sample_size_per_block_count: usize,
@@ -20,10 +21,11 @@ pub struct BranchingFactorByBlockCountData {
 
 impl<GS: GameState> BranchingFactorByBlockCount<GS> {
 
-    pub fn new(game_name: String, max_block_count: usize, max_graph_block_count: usize, sample_size_per_block_count: usize) -> Self {
+    pub fn new(game_name: String, graph_suffix: String, max_block_count: usize, max_graph_block_count: usize, sample_size_per_block_count: usize) -> Self {
         return BranchingFactorByBlockCount {
             _marker: std::marker::PhantomData,
             game_name,
+            graph_suffix,
             max_block_count,
             max_graph_block_count,
             sample_size_per_block_count,
@@ -76,8 +78,10 @@ impl<GS: GameState> StatGenerator for BranchingFactorByBlockCount<GS> {
 
         root.fill(&WHITE)?;
 
+        let caption = format!("Branching factor by block count{}", self.graph_suffix);
+
         let mut chart_log = ChartBuilder::on(&root)
-            .caption("Branching factor by block count", ("sans-serif", 50).into_font())
+            .caption(caption, ("sans-serif", 50).into_font())
             .margin(5)
             .x_label_area_size(40)
             .y_label_area_size(60)
