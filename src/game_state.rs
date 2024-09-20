@@ -43,6 +43,7 @@ pub trait ContinuousBlockId : SimplifiedState {
 #[allow(dead_code)]
 pub mod game_state_4x4_binary_4bit;
 pub mod game_state_4x4_binary_3bit;
+pub mod game_state_4x4_struct;
 pub mod game_state_5x5_binary_128bit;
 pub mod game_state_5x5_struct;
 pub mod game_state_5x5_binary_composite;

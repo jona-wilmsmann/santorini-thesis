@@ -3,6 +3,7 @@ use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, 
 use rand::{Rng, SeedableRng};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::game_state::game_state_4x4_binary_4bit::GameState4x4Binary4Bit;
+use santorini_minimax::game_state::game_state_4x4_struct::GameState4x4Struct;
 use santorini_minimax::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
 use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
@@ -123,6 +124,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     benchmark_game_state::<GameState5x5BinaryComposite>("Binary Composite - 5x5", c);
     benchmark_game_state::<GameState4x4Binary3Bit>("Binary 3bit - 4x4", c);
     benchmark_game_state::<GameState4x4Binary4Bit>("Binary 4bit - 4x4", c);
+    benchmark_game_state::<GameState4x4Struct>("Struct - 4x4", c);
 
 
     benchmark_minimax::<GameState5x5Binary128bit>(5, "Binary 128bit - 5x5", c);
@@ -130,6 +132,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     benchmark_minimax::<GameState5x5BinaryComposite>(5, "Binary Composite - 5x5", c);
     benchmark_minimax::<GameState4x4Binary3Bit>(7, "Binary 3bit - 4x4", c);
     benchmark_minimax::<GameState4x4Binary4Bit>(7, "Binary 4bit - 4x4", c);
+    benchmark_minimax::<GameState4x4Struct>(7, "Struct - 4x4", c);
 
 
     benchmark_simplified::<GameState4x4Binary3Bit>("Binary 3bit - 4x4", c);
