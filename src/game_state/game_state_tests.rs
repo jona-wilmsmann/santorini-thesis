@@ -66,13 +66,28 @@ mod tests {
         for state_to_test in states_to_test {
             let binary_3b_state = GameState4x4Binary3Bit::from_generic_game_state(&state_to_test);
             let binary_4b_state = GameState4x4Binary4Bit::from_generic_game_state(&state_to_test);
-            let mut next_states_3b = binary_3b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<4, 4, 1>>>();
-            let mut next_states_4b = binary_4b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<4, 4, 1>>>();
 
-            next_states_3b.sort();
-            next_states_4b.sort();
+            let child_states_3b = binary_3b_state.get_children_states();
+            let child_states_4b = binary_4b_state.get_children_states();
 
-            assert_eq!(next_states_3b, next_states_4b);
+            for child_state in &child_states_3b {
+                let generic_child_state = child_state.to_generic_game_state();
+                let back_converted_state = GameState4x4Binary3Bit::from_generic_game_state(&generic_child_state);
+                assert_eq!(child_state.raw_value(), back_converted_state.raw_value());
+            }
+            for child_state in &child_states_4b {
+                let generic_child_state = child_state.to_generic_game_state();
+                let back_converted_state = GameState4x4Binary4Bit::from_generic_game_state(&generic_child_state);
+                assert_eq!(child_state.raw_value(), back_converted_state.raw_value());
+            }
+
+            let mut generic_child_states_3b = child_states_3b.iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<4, 4, 1>>>();
+            let mut generic_child_states_4b = child_states_4b.iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<4, 4, 1>>>();
+
+            generic_child_states_3b.sort();
+            generic_child_states_4b.sort();
+
+            assert_eq!(generic_child_states_3b, generic_child_states_4b);
         }
     }
 
@@ -142,16 +157,36 @@ mod tests {
             let struct_state = GameState5x5Struct::from_generic_game_state(state_to_test);
             let binary_2_state = GameState5x5BinaryComposite::from_generic_game_state(state_to_test);
 
-            let mut next_states_binary = binary_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
-            let mut next_states_struct = struct_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
-            let mut next_states_binary_2 = binary_2_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
+            let child_states_binary = binary_state.get_children_states();
+            let child_states_struct = struct_state.get_children_states();
+            let child_states_binary_2 = binary_2_state.get_children_states();
 
-            next_states_binary.sort();
-            next_states_struct.sort();
-            next_states_binary_2.sort();
+            for child_state in &child_states_binary {
+                let generic_child_state = child_state.to_generic_game_state();
+                let back_converted_state = GameState5x5Binary128bit::from_generic_game_state(&generic_child_state);
+                assert_eq!(child_state.raw_value(), back_converted_state.raw_value());
+            }
+            for child_state in &child_states_struct {
+                let generic_child_state = child_state.to_generic_game_state();
+                let back_converted_state = GameState5x5Struct::from_generic_game_state(&generic_child_state);
+                assert_eq!(child_state.raw_value(), back_converted_state.raw_value());
+            }
+            for child_state in &child_states_binary_2 {
+                let generic_child_state = child_state.to_generic_game_state();
+                let back_converted_state = GameState5x5BinaryComposite::from_generic_game_state(&generic_child_state);
+                assert_eq!(child_state.raw_value(), back_converted_state.raw_value());
+            }
 
-            assert_eq!(next_states_binary, next_states_struct);
-            assert_eq!(next_states_binary, next_states_binary_2);
+            let mut generic_child_states_binary = child_states_binary.iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
+            let mut generic_child_states_struct = child_states_struct.iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
+            let mut generic_child_states_binary_2 = child_states_binary_2.iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
+
+            generic_child_states_binary.sort();
+            generic_child_states_struct.sort();
+            generic_child_states_binary_2.sort();
+
+            assert_eq!(generic_child_states_binary, generic_child_states_struct);
+            assert_eq!(generic_child_states_binary, generic_child_states_binary_2);
         }
     }
 

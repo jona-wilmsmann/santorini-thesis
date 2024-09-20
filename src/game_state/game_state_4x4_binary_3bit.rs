@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 use crate::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, MinimaxReady};
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
+use crate::game_state::utils::static_evaluation::gs4x4;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use crate::minimax::minimax_cache::MinimaxCache;
 
@@ -285,56 +286,6 @@ impl GameState for GameState4x4Binary3Bit {
     }
 }
 
-
-impl GameState4x4Binary3Bit {
-    const DISTANCE_TO_STATIC_VALUATION: [f32; 4] = [5.0, 2.0, 1.0, 0.5];
-    const HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION: [[f32; 5]; 3] = [
-        [1.0, 1.5, -1.0, 0.0, -1.0], //Start height 0
-        [1.0, 1.5, 2.0, 0.5, -1.0], //Start height 1
-        [1.0, 1.5, 2.0, 3.0, -1.0], //Start height 2
-    ];
-
-    const POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION: [[[[f32; 5]; 3]; 16]; 16] =
-        Self::precompute_position_to_position_to_height_to_height_to_valuation();
-    const fn precompute_position_to_position_to_height_to_height_to_valuation() -> [[[[f32; 5]; 3]; 16]; 16] {
-        let mut position_to_position_to_height_to_height_to_valuation = [[[[0.0; 5]; 3]; 16]; 16];
-
-        let mut i = 0;
-        while i < 16 {
-            let row_i = i / 4;
-            let column_i = i % 4;
-            let position_i = Self::TILE_ID_TO_POSITION[i];
-            let mut j = 0;
-            while j < 16 {
-                let row_j = j / 4;
-                let column_j = j % 4;
-                let position_j = Self::TILE_ID_TO_POSITION[j];
-
-                let row_distance = if row_i > row_j { row_i - row_j } else { row_j - row_i };
-                let column_distance = if column_i > column_j { column_i - column_j } else { column_j - column_i };
-                let distance = if row_distance > column_distance { row_distance } else { column_distance };
-
-                let mut start_height = 0;
-                while start_height <= 2 {
-                    let mut neighbor_height = 0;
-                    while neighbor_height <= 4 {
-                        let height_valuation = Self::HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION[start_height][neighbor_height];
-                        let distance_valuation = Self::DISTANCE_TO_STATIC_VALUATION[distance];
-                        position_to_position_to_height_to_height_to_valuation[position_i][position_j][start_height][neighbor_height] = height_valuation * distance_valuation;
-                        neighbor_height += 1;
-                    }
-
-                    start_height += 1;
-                }
-                j += 1;
-            }
-            i += 1;
-        }
-
-        return position_to_position_to_height_to_height_to_valuation;
-    }
-}
-
 impl MinimaxReady for GameState4x4Binary3Bit {
     fn sort_children_states(children_states: &mut Vec<Self>, depth: usize, _cache: &mut MinimaxCache<Self>) {
         if depth > 2 {
@@ -348,25 +299,11 @@ impl MinimaxReady for GameState4x4Binary3Bit {
     }
 
     fn get_static_evaluation(&self) -> f32 {
-        if self.has_player_a_won() {
-            return f32::MAX;
-        } else if self.has_player_b_won() {
-            return f32::MIN;
-        }
-
         let player_a_position = self.get_player_a_position() as usize;
         let player_b_position = self.get_player_b_position() as usize;
         let position_heights = self.get_position_heights();
-        let mut valuation = 0.0;
 
-        // TODO: Consider whose turn it is
-
-        for i in 0..16 {
-            valuation += Self::POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[player_a_position][i][position_heights[player_a_position] as usize][position_heights[i] as usize];
-            valuation -= Self::POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[player_b_position][i][position_heights[player_b_position] as usize][position_heights[i] as usize];
-        }
-
-        return valuation;
+        return gs4x4::get_static_evaluation(position_heights, player_a_position, player_b_position, self.is_player_a_turn());
     }
 }
 

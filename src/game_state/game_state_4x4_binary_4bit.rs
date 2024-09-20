@@ -1,9 +1,11 @@
 use std::fmt;
 use std::fmt::Formatter;
-use crate::game_state::GameState;
+use crate::game_state::{GameState, MinimaxReady};
 
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
+use crate::game_state::utils::static_evaluation::gs4x4;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
+use crate::minimax::minimax_cache::MinimaxCache;
 
 /*
 For this encoding, player A is always the active player
@@ -246,7 +248,7 @@ impl GameState for GameState4x4Binary4Bit {
         let cleaned_player_b_state = self.0 & !((self.0 & PLAYER_B_HEIGHT_MASK) + PLAYER_B_ADDITION_MASK);
         let player_b_bit = cleaned_player_b_state & Self::PLAYER_B_MASK;
         // Current player B becomes player A, player B is cleared so that it can be set later
-        let flipped_base_state = (self.0 & !Self::PLAYER_A_MASK) | (player_b_bit << 1);
+        let flipped_base_state = (self.0 & !Self::PLAYER_A_MASK) + player_b_bit;
 
 
 
@@ -332,6 +334,58 @@ impl GameState for GameState4x4Binary4Bit {
             }
             valid_movement_neighbors_mask >>= (new_movement_positions + 1) * 4;
             seen_movement_positions += new_movement_positions + 1;
+        }
+    }
+}
+
+impl MinimaxReady for GameState4x4Binary4Bit {
+    fn sort_children_states(children_states: &mut Vec<Self>, depth: usize, _cache: &mut MinimaxCache<Self>) {
+        if depth > 2 {
+            // Create a vector of tuples with the static evaluation and the GameState
+            let mut children_evaluations: Vec<(Self, f32)> = children_states.iter().map(|state| (state.clone(), state.get_static_evaluation())).collect();
+            // Sort the vector by the static evaluation
+            children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            // Replace the children_states vector with the sorted vector
+            *children_states = children_evaluations.iter().map(|(state, _)| state.clone()).collect();
+        }
+    }
+
+    fn get_static_evaluation(&self) -> f32 {
+        let mut player_a_position = 16;
+        let mut player_b_position = 16;
+        let mut position_heights = [0; 16];
+
+        let mut block_count = 0;
+
+        let mut state = self.0;
+        for i in 0..16 {
+            let tile_info = (state & 0xF) as u8;
+            if tile_info == 0b1111 {
+                player_b_position = i;
+                position_heights[i] = 3;
+                block_count += 3;
+            } else if tile_info == 0b0111 {
+                position_heights[i] = 4;
+                block_count += 4;
+            } else {
+                let height = tile_info & 0x3;
+                position_heights[i] = height;
+                block_count += height;
+                if tile_info & 0x8 != 0 {
+                    player_a_position = i;
+                } else if tile_info & 0x4 != 0 {
+                    player_b_position = i;
+                }
+            }
+            state >>= 4;
+        }
+
+        // TODO Handle turn if workers not placed
+
+        return if block_count % 2 == 0 {
+            gs4x4::get_static_evaluation(position_heights, player_a_position, player_b_position, true)
+        } else {
+            gs4x4::get_static_evaluation(position_heights, player_b_position, player_a_position, false)
         }
     }
 }
