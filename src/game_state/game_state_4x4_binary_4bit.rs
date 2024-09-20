@@ -361,7 +361,7 @@ impl MinimaxReady for GameState4x4Binary4Bit {
         for i in 0..16 {
             let tile_info = (state & 0xF) as u8;
             if tile_info == 0b1111 {
-                player_b_position = i;
+                player_b_position = i as u8;
                 position_heights[i] = 3;
                 block_count += 3;
             } else if tile_info == 0b0111 {
@@ -372,9 +372,9 @@ impl MinimaxReady for GameState4x4Binary4Bit {
                 position_heights[i] = height;
                 block_count += height;
                 if tile_info & 0x8 != 0 {
-                    player_a_position = i;
+                    player_a_position = i as u8;
                 } else if tile_info & 0x4 != 0 {
-                    player_b_position = i;
+                    player_b_position = i as u8;
                 }
             }
             state >>= 4;

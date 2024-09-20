@@ -299,8 +299,8 @@ impl MinimaxReady for GameState4x4Binary3Bit {
     }
 
     fn get_static_evaluation(&self) -> f32 {
-        let player_a_position = self.get_player_a_position() as usize;
-        let player_b_position = self.get_player_b_position() as usize;
+        let player_a_position = self.get_player_a_position() as u8;
+        let player_b_position = self.get_player_b_position() as u8;
         let position_heights = self.get_position_heights();
 
         return gs4x4::get_static_evaluation(position_heights, player_a_position, player_b_position, self.is_player_a_turn());

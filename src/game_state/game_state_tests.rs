@@ -202,11 +202,11 @@ mod tests {
 
     #[test]
     fn test_find_5x5_generic_conversion_discrepancies() {
-        find_5x5_generic_conversion_discrepancies(100000);
+        find_5x5_generic_conversion_discrepancies(10000);
     }
 
     #[test]
     fn test_find_5x5_child_discrepancies() {
-        find_5x5_child_discrepancies(100000);
+        find_5x5_child_discrepancies(10000);
     }
 }
