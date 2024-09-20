@@ -31,12 +31,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         }
     }));
 
-    group.bench_function("flip 1,000,000 states", |b| b.iter(|| {
-        for state in &random_states {
-            black_box(state.get_flipped_state());
-        }
-    }));
-
     group.bench_function("get static valuation for 1,000,000 states", |b| b.iter(|| {
         for state in &random_states {
             black_box(state.get_static_evaluation());

@@ -101,15 +101,11 @@ impl GameState for GameState5x5Struct {
 
         let mut player_a_workers = [Self::WORKER_NOT_PLACED; 2];
         let mut player_b_workers = [Self::WORKER_NOT_PLACED; 2];
-        for (i, &worker) in generic_game_state.player_a_workers.iter().enumerate() {
-            if worker != GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED {
-                player_a_workers[i] = worker;
-            }
+        for (i, &worker) in generic_game_state.player_a_workers.iter().flatten().enumerate() {
+            player_a_workers[i] = worker;
         }
-        for (i, &worker) in generic_game_state.player_b_workers.iter().enumerate() {
-            if worker != GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED {
-                player_b_workers[i] = worker;
-            }
+        for (i, &worker) in generic_game_state.player_b_workers.iter().flatten().enumerate() {
+            player_b_workers[i] = worker;
         }
 
         return Self {
@@ -121,28 +117,23 @@ impl GameState for GameState5x5Struct {
     }
 
     fn to_generic_game_state(&self) -> GenericSantoriniGameState<5, 5, 2> {
-        let mut tile_heights = [[0; 5]; 5];
-        for row in 0..5 {
-            for column in 0..5 {
-                tile_heights[row][column] = self.tile_heights[row * 5 + column];
-            }
+        let mut generic_tile_heights = [[0; 5]; 5];
+        for i in 0..25 {
+            generic_tile_heights[i / 5][i % 5] = self.tile_heights[i];
         }
 
-        let mut player_a_workers = [GenericSantoriniGameState::<5,5,2>::WORKER_NOT_PLACED; 2];
-        let mut player_b_workers = [GenericSantoriniGameState::<5,5,2>::WORKER_NOT_PLACED; 2];
+        let generic_player_a_workers = if self.player_a_workers[0] == Self::WORKER_NOT_PLACED {
+            None
+        } else {
+            Some(self.player_a_workers)
+        };
+        let generic_player_b_workers = if self.player_b_workers[0] == Self::WORKER_NOT_PLACED {
+            None
+        } else {
+            Some(self.player_b_workers)
+        };
 
-        for (i, &worker) in self.player_a_workers.iter().enumerate() {
-            if worker != Self::WORKER_NOT_PLACED {
-                player_a_workers[i] = worker;
-            }
-        }
-        for (i, &worker) in self.player_b_workers.iter().enumerate() {
-            if worker != Self::WORKER_NOT_PLACED {
-                player_b_workers[i] = worker;
-            }
-        }
-
-        return GenericSantoriniGameState::<5, 5, 2>::new(player_a_workers, player_b_workers, tile_heights, self.player_a_turn)
+        return GenericSantoriniGameState::<5, 5, 2>::new(generic_player_a_workers, generic_player_b_workers, generic_tile_heights, self.is_player_a_turn())
             .expect("Invalid game state");
     }
 
@@ -169,14 +160,19 @@ impl GameState for GameState5x5Struct {
             }
         }
 
-        let worker_index_to_place_option = moving_player_workers.iter().position(|&x| x == Self::WORKER_NOT_PLACED);
 
-        if let Some(worker_index_to_place) = worker_index_to_place_option {
-            // Not all workers are placed yet, so the next states are all possible worker placements
-            for tile_id in 0..25 {
-                if !tile_has_worker[tile_id] {
-                    let mut new_workers = moving_player_workers;
-                    new_workers[worker_index_to_place] = tile_id as u8;
+        if moving_player_workers[0] == Self::WORKER_NOT_PLACED {
+            // Workers are not placed yet, so the next states are all possible worker placements
+            for worker_1_tile_id in 0..25 {
+                if tile_has_worker[worker_1_tile_id] {
+                    continue;
+                }
+                for worker_2_tile_id in (worker_1_tile_id + 1)..25 {
+                    if tile_has_worker[worker_2_tile_id] {
+                        continue;
+                    }
+
+                    let new_workers = [worker_1_tile_id as u8, worker_2_tile_id as u8];
                     possible_next_states.push(Self {
                         tile_heights: self.tile_heights,
                         player_a_workers: if self.player_a_turn { new_workers } else { self.player_a_workers },
@@ -239,15 +235,6 @@ impl GameState for GameState5x5Struct {
                 }
             }
         }
-    }
-
-    fn get_flipped_state(&self) -> Self {
-        return Self {
-            tile_heights: self.tile_heights,
-            player_a_workers: self.player_b_workers,
-            player_b_workers: self.player_a_workers,
-            player_a_turn: !self.player_a_turn,
-        };
     }
 }
 

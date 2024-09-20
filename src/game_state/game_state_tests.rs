@@ -9,21 +9,65 @@ mod tests {
     use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
     use crate::generic_game_state::GenericGameState;
 
-    fn find_4x4_discrepancies(tries: usize) {
-        for _ in 0..tries {
-            let mut random_state = GenericSantoriniGameState::<4, 4, 1>::generate_random_state();
-            // Ensure player A turn is true, because the 4b states do not have player turn information
-            random_state.set_player_a_turn(true);
+    fn find_4x4_generic_conversion_discrepancies(tries: usize) {
+        let mut states_to_test = Vec::with_capacity(tries + 2);
 
-            let binary_3b_state = GameState4x4Binary3Bit::from_generic_game_state(&random_state);
-            let binary_4b_state = GameState4x4Binary4Bit::from_generic_game_state(&random_state);
+        let generic_state_with_no_workers = GenericSantoriniGameState::<4, 4, 1>::new(
+            None,
+            None,
+            [[0; 4]; 4],
+            true,
+        ).unwrap();
+
+        let generic_state_without_all_workers = GenericSantoriniGameState::<4, 4, 1>::new(
+            Some([0]),
+            None,
+            [[0; 4]; 4],
+            false,
+        ).unwrap();
+
+        states_to_test.push(generic_state_with_no_workers);
+        states_to_test.push(generic_state_without_all_workers);
+
+
+        for state_to_test in states_to_test {
+            let state_3b = GameState4x4Binary3Bit::from_generic_game_state(&state_to_test);
+            let converted_generic_state_3b = state_3b.to_generic_game_state();
+
+            let state_4b = GameState4x4Binary4Bit::from_generic_game_state(&state_to_test);
+            let converted_generic_state_4b = state_4b.to_generic_game_state();
+
+            assert_eq!(state_to_test, converted_generic_state_3b);
+            assert_eq!(state_to_test, converted_generic_state_4b);
+        }
+    }
+
+    fn find_4x4_child_discrepancies(tries: usize) {
+        let mut states_to_test = Vec::with_capacity(tries + 2);
+
+        let generic_state_with_no_workers = GenericSantoriniGameState::<4, 4, 1>::new(
+            None,
+            None,
+            [[0; 4]; 4],
+            true,
+        ).unwrap();
+
+        let generic_state_without_all_workers = GenericSantoriniGameState::<4, 4, 1>::new(
+            Some([0]),
+            None,
+            [[0; 4]; 4],
+            false,
+        ).unwrap();
+
+        states_to_test.push(generic_state_with_no_workers);
+        states_to_test.push(generic_state_without_all_workers);
+
+
+        for state_to_test in states_to_test {
+            let binary_3b_state = GameState4x4Binary3Bit::from_generic_game_state(&state_to_test);
+            let binary_4b_state = GameState4x4Binary4Bit::from_generic_game_state(&state_to_test);
             let mut next_states_3b = binary_3b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<4, 4, 1>>>();
             let mut next_states_4b = binary_4b_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<4, 4, 1>>>();
-
-            // Set player A turn to true for all states, because the 4b states do not have player turn information
-            for state in next_states_3b.iter_mut() {
-                state.set_player_a_turn(true);
-            }
 
             next_states_3b.sort();
             next_states_4b.sort();
@@ -32,85 +76,102 @@ mod tests {
         }
     }
 
-    fn find_4x4_flip_discrepancies(tries: usize) {
-        for _ in 0..tries {
-            let random_state = GenericSantoriniGameState::<4, 4, 1>::generate_random_state();
-            let binary_3b_state = GameState4x4Binary3Bit::from_generic_game_state(&random_state);
-            let binary_4b_state = GameState4x4Binary4Bit::from_generic_game_state(&random_state);
-
-            let flipped_3b = binary_3b_state.get_flipped_state();
-            let flipped_4b = binary_4b_state.get_flipped_state();
-
-            let flipped_3b_generic = flipped_3b.to_generic_game_state();
-            let mut flipped_4b_generic = flipped_4b.to_generic_game_state();
-
-            let twice_flipped_3b = flipped_3b.get_flipped_state();
-            let twice_flipped_4b = flipped_4b.get_flipped_state();
-
-            let twice_flipped_3b_generic = twice_flipped_3b.to_generic_game_state();
-            let mut twice_flipped_4b_generic = twice_flipped_4b.to_generic_game_state();
-
-            flipped_4b_generic.set_player_a_turn(flipped_3b_generic.player_a_turn);
-            assert_eq!(flipped_3b_generic, flipped_4b_generic);
-
-            assert_eq!(random_state, twice_flipped_3b_generic);
-
-            twice_flipped_4b_generic.set_player_a_turn(random_state.player_a_turn);
-            assert_eq!(random_state, twice_flipped_4b_generic);
-        }
-    }
-
     fn find_5x5_generic_conversion_discrepancies(tries: usize) {
-        let generic_state_without_all_workers = GenericSantoriniGameState::<5, 5, 2>::new(
-            [0, GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED],
-            [1, GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED],
+        let mut states_to_test = Vec::with_capacity(tries + 2);
+
+        let generic_state_with_no_workers = GenericSantoriniGameState::<5, 5, 2>::new(
+            None,
+            None,
             [[0; 5]; 5],
-            true
+            true,
         ).unwrap();
 
-        let binary_state_without_all_workers = GameState5x5Binary128bit::from_generic_game_state(&generic_state_without_all_workers);
-        let converted_generic_state_without_all_workers_binary = binary_state_without_all_workers.to_generic_game_state();
+        let generic_state_without_all_workers = GenericSantoriniGameState::<5, 5, 2>::new(
+            Some([0, 1]),
+            None,
+            [[0; 5]; 5],
+            false,
+        ).unwrap();
 
-        let struct_state_without_all_workers = GameState5x5Struct::from_generic_game_state(&generic_state_without_all_workers);
-        let converted_generic_state_without_all_workers_struct = struct_state_without_all_workers.to_generic_game_state();
+        states_to_test.push(generic_state_with_no_workers);
+        states_to_test.push(generic_state_without_all_workers);
 
-        let binary_2_state_without_all_workers = GameState5x5BinaryComposite::from_generic_game_state(&generic_state_without_all_workers);
-        let converted_generic_state_without_all_workers_binary_2 = binary_2_state_without_all_workers.to_generic_game_state();
 
-        assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers_binary);
-        assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers_struct);
-        assert_eq!(generic_state_without_all_workers, converted_generic_state_without_all_workers_binary_2);
-
-        for _ in 0..tries {
-            let random_generic_state = GenericSantoriniGameState::<5, 5, 2>::generate_random_state();
-
-            let binary_state = GameState5x5Binary128bit::from_generic_game_state(&random_generic_state);
+        for state_to_test in states_to_test {
+            let binary_state = GameState5x5Binary128bit::from_generic_game_state(&state_to_test);
             let converted_generic_state_binary = binary_state.to_generic_game_state();
 
-            let struct_state = GameState5x5Struct::from_generic_game_state(&random_generic_state);
+            let struct_state = GameState5x5Struct::from_generic_game_state(&state_to_test);
             let converted_generic_state_struct = struct_state.to_generic_game_state();
 
-            let binary_2_state = GameState5x5BinaryComposite::from_generic_game_state(&random_generic_state);
+            let binary_2_state = GameState5x5BinaryComposite::from_generic_game_state(&state_to_test);
             let converted_generic_state_binary_2 = binary_2_state.to_generic_game_state();
 
-            assert_eq!(random_generic_state, converted_generic_state_binary);
-            assert_eq!(random_generic_state, converted_generic_state_struct);
-            assert_eq!(random_generic_state, converted_generic_state_binary_2);
+            assert_eq!(state_to_test, converted_generic_state_binary);
+            assert_eq!(state_to_test, converted_generic_state_struct);
+            assert_eq!(state_to_test, converted_generic_state_binary_2);
+        }
+    }
+
+    fn find_5x5_child_discrepancies(tries: usize) {
+        let mut states_to_test = Vec::with_capacity(tries + 2);
+
+        let generic_state_with_no_workers = GenericSantoriniGameState::<5, 5, 2>::new(
+            None,
+            None,
+            [[0; 5]; 5],
+            true,
+        ).unwrap();
+
+        let generic_state_without_all_workers = GenericSantoriniGameState::<5, 5, 2>::new(
+            Some([0, 1]),
+            None,
+            [[0; 5]; 5],
+            false,
+        ).unwrap();
+
+        states_to_test.push(generic_state_with_no_workers);
+        states_to_test.push(generic_state_without_all_workers);
+
+        for _ in 0..tries {
+            states_to_test.push(GenericSantoriniGameState::<5, 5, 2>::generate_random_state());
+        }
+
+        for state_to_test in &states_to_test {
+            let binary_state = GameState5x5Binary128bit::from_generic_game_state(state_to_test);
+            let struct_state = GameState5x5Struct::from_generic_game_state(state_to_test);
+            let binary_2_state = GameState5x5BinaryComposite::from_generic_game_state(state_to_test);
+
+            let mut next_states_binary = binary_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
+            let mut next_states_struct = struct_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
+            let mut next_states_binary_2 = binary_2_state.get_children_states().iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
+
+            next_states_binary.sort();
+            next_states_struct.sort();
+            next_states_binary_2.sort();
+
+            assert_eq!(next_states_binary, next_states_struct);
+            assert_eq!(next_states_binary, next_states_binary_2);
         }
     }
 
     #[test]
-    fn test_find_4x4_discrepancies() {
-        find_4x4_discrepancies(100000);
+    fn test_find_4x4_generic_conversion_discrepancies() {
+        find_4x4_generic_conversion_discrepancies(100000);
     }
 
     #[test]
-    fn test_find_4x4_flip_discrepancies() {
-        find_4x4_flip_discrepancies(100000);
+    fn test_find_4x4_child_discrepancies() {
+        find_4x4_child_discrepancies(100000);
     }
 
     #[test]
     fn test_find_5x5_generic_conversion_discrepancies() {
         find_5x5_generic_conversion_discrepancies(100000);
+    }
+
+    #[test]
+    fn test_find_5x5_child_discrepancies() {
+        find_5x5_child_discrepancies(100000);
     }
 }

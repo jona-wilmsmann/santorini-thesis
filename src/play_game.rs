@@ -30,7 +30,7 @@ pub fn play_game<
             player_2_strategy.choose_move(&current_game_state.to_generic_game_state(), &possible_next_states.iter().map(|state| state.to_generic_game_state()).collect())
         };
 
-        current_game_state = possible_next_states[chosen_move].clone().get_flipped_state();
+        current_game_state = possible_next_states[chosen_move];
         player_1s_turn = !player_1s_turn;
     }
 }

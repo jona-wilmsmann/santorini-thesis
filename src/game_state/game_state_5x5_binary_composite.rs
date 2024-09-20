@@ -1,7 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
 use crate::game_state::{GameState, MinimaxReady};
-use crate::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use crate::minimax::minimax_cache::MinimaxCache;
 
@@ -51,14 +50,14 @@ impl GameState5x5BinaryComposite {
     const NO_NEIGHBOR: usize = usize::MAX;
     const TILE_TO_NEIGHBORS: [[usize; 8]; 25] = Self::precompute_tile_to_neighbors();
     const fn precompute_tile_to_neighbors() -> [[usize; 8]; 25] {
-        let mut position_to_neighbors = [[Self::NO_NEIGHBOR; 8]; 25];
+        let mut tile_to_neighbors = [[Self::NO_NEIGHBOR; 8]; 25];
 
         let mut row: isize = 0;
         while row < 5 {
             let mut column = 0;
             while column < 5 {
                 let tile_id = (row * 5 + column) as usize;
-                let mut position_neighbor_index = 0;
+                let mut tile_neighbor_index = 0;
 
                 let mut neighbor_row = row - 1;
                 while neighbor_row <= row + 1 {
@@ -73,8 +72,8 @@ impl GameState5x5BinaryComposite {
                             continue;
                         }
                         let neighbor_tile_id = (neighbor_row * 5 + neighbor_column) as usize;
-                        position_to_neighbors[tile_id][position_neighbor_index] = neighbor_tile_id;
-                        position_neighbor_index += 1;
+                        tile_to_neighbors[tile_id][tile_neighbor_index] = neighbor_tile_id;
+                        tile_neighbor_index += 1;
 
                         neighbor_column += 1;
                     }
@@ -84,16 +83,16 @@ impl GameState5x5BinaryComposite {
             }
             row += 1;
         }
-        return position_to_neighbors;
+        return tile_to_neighbors;
     }
 
 
-    pub fn get_position_heights(&self) -> [u8; 25] {
-        let mut position_heights = [0; 25];
+    pub fn get_tile_heights(&self) -> [u8; 25] {
+        let mut tile_heights = [0; 25];
 
         let mut worker_on_tile = [false; 25];
         let mut rest_data = self.rest;
-        for i in 0..4 {
+        for _ in 0..4 {
             let worker_tile = rest_data as u8 & 0x1F;
             if worker_tile != Self::WORKER_NOT_PLACED {
                 worker_on_tile[worker_tile as usize] = true;
@@ -111,12 +110,12 @@ impl GameState5x5BinaryComposite {
                 heights_data as u8 & 0x3
             };
 
-            position_heights[i] = height;
+            tile_heights[i] = height;
 
             heights_data >>= 2;
             blocked_data >>= 1;
         }
-        return position_heights;
+        return tile_heights;
     }
 
     pub fn get_player_a_worker_tiles(&self) -> [u8; 2] {
@@ -179,12 +178,15 @@ impl GameState for GameState5x5BinaryComposite {
         }
 
         // Set worker positions and blocked tiles
-        for (worker_tile, bit_offset) in [(generic_game_state.player_a_workers[0], 0), (generic_game_state.player_a_workers[1], 5), (generic_game_state.player_b_workers[0], 10), (generic_game_state.player_b_workers[1], 15)].iter() {
-            if worker_tile == &GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED {
-                rest |= (Self::WORKER_NOT_PLACED as u32) << (*bit_offset as u32);
+        for (worker_tiles_option, bit_offset) in [(generic_game_state.player_a_workers, 0), (generic_game_state.player_b_workers, 10)].iter() {
+            if let Some(worker_tiles) = worker_tiles_option {
+                for (worker_index, &worker_tile) in worker_tiles.iter().enumerate() {
+                    rest |= (worker_tile as u32) << ((worker_index * 5 + *bit_offset) as u32);
+                    blocked_tiles |= 1 << worker_tile;
+                }
             } else {
-                rest |= (*worker_tile as u32) << (*bit_offset as u32);
-                blocked_tiles |= 1 << (*worker_tile as u32);
+                rest |= (Self::WORKER_NOT_PLACED as u32) << (*bit_offset as u32);
+                rest |= (Self::WORKER_NOT_PLACED as u32) << ((*bit_offset + 5) as u32);
             }
         }
 
@@ -194,10 +196,10 @@ impl GameState for GameState5x5BinaryComposite {
         }
 
         // Set win bits
-        if generic_game_state.player_a_workers.iter().filter(|&x| *x != GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED).any(|&x| generic_game_state.get_tile_height(x as usize) == 3) {
+        if generic_game_state.has_player_a_won() {
             rest |= 1 << 31;
         }
-        if generic_game_state.player_b_workers.iter().filter(|&x| *x != GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED).any(|&x| generic_game_state.get_tile_height(x as usize) == 3) {
+        if generic_game_state.has_player_b_won() {
             rest |= 1 << 30;
         }
 
@@ -209,40 +211,28 @@ impl GameState for GameState5x5BinaryComposite {
     }
 
     fn to_generic_game_state(&self) -> GenericSantoriniGameState<5, 5, 2> {
-        let mut tile_heights = [[0; 5]; 5];
-        let mut player_a_workers = [GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED; 2];
-        let mut player_b_workers = [GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED; 2];
+        let tile_heights = self.get_tile_heights();
+        let player_a_workers = self.get_player_a_worker_tiles();
+        let player_b_workers = self.get_player_b_worker_tiles();
         let player_a_turn = self.is_player_a_turn();
 
-        let mut tile_blocked_by_worker = [false; 25];
-
-        let mut worker_state = self.rest;
-        for pos in player_a_workers.iter_mut().chain(player_b_workers.iter_mut()) {
-            let worker_pos = worker_state as u8 & 0x1F;
-            if worker_pos != Self::WORKER_NOT_PLACED {
-                *pos = worker_pos;
-                tile_blocked_by_worker[worker_pos as usize] = true;
-            }
-            worker_state >>= 5;
+        let mut generic_tile_heights = [[0; 5]; 5];
+        for i in 0..25 {
+            generic_tile_heights[i / 5][i % 5] = tile_heights[i];
         }
 
-        let mut heights = self.heights;
-        let mut blocked_tiles = self.blocked_tiles;
-        for tile_id in 0..25 {
-            let blocked = blocked_tiles & 1 != 0;
-            let height = if blocked && !tile_blocked_by_worker[tile_id] {
-                4
-            } else {
-                heights as u8 & 0x3
-            };
+        let generic_player_a_workers = if player_a_workers[0] == Self::WORKER_NOT_PLACED {
+            None
+        } else {
+            Some(player_a_workers)
+        };
+        let generic_player_b_workers = if player_b_workers[0] == Self::WORKER_NOT_PLACED {
+            None
+        } else {
+            Some(player_b_workers)
+        };
 
-            tile_heights[tile_id / 5][tile_id % 5] = height;
-
-            heights >>= 2;
-            blocked_tiles >>= 1;
-        }
-
-        return GenericSantoriniGameState::<5, 5, 2>::new(player_a_workers, player_b_workers, tile_heights, player_a_turn)
+        return GenericSantoriniGameState::<5, 5, 2>::new(generic_player_a_workers, generic_player_b_workers, generic_tile_heights, player_a_turn)
             .expect("Invalid game state");
     }
 
@@ -270,19 +260,28 @@ impl GameState for GameState5x5BinaryComposite {
             }
         }
 
-        let worker_index_to_place_option = moving_player_workers.iter().position(|&x| x == Self::WORKER_NOT_PLACED);
 
-        if let Some(worker_index_to_place) = worker_index_to_place_option {
-            // Not all workers are placed yet, so the next states are all possible worker placements
-            let worker_bit_offset = if is_player_a_turn { 5 * worker_index_to_place } else { 10 + 5 * worker_index_to_place };
-            let new_rest_base = (self.rest & !(0x1F << worker_bit_offset)) ^ (1 << 29);
+        if moving_player_workers[0] == Self::WORKER_NOT_PLACED {
+            // Workers are not placed yet, so the next states are all possible worker placements
 
-            for tile_id in 0..25 {
-                if !tile_has_worker[tile_id] {
+            let worker_bit_offset = if is_player_a_turn { 0 } else { 10 };
+            // Clear worker positions and flip the turn
+            let new_rest_base = (self.rest & !(0x3FF << worker_bit_offset)) ^ (1 << 29);
+
+            for worker_1_tile_id in 0..25 {
+                if tile_has_worker[worker_1_tile_id] {
+                    continue;
+                }
+                for worker_2_tile_id in (worker_1_tile_id + 1)..25 {
+                    if tile_has_worker[worker_2_tile_id] {
+                        continue;
+                    }
+
                     let mut new_rest = new_rest_base;
-                    new_rest |= (tile_id as u32) << worker_bit_offset;
+                    new_rest |= (worker_1_tile_id as u32) << worker_bit_offset;
+                    new_rest |= (worker_2_tile_id as u32) << (worker_bit_offset + 5);
 
-                    let new_blocked_tiles = self.blocked_tiles | (1 << tile_id);
+                    let new_blocked_tiles = self.blocked_tiles | (1 << worker_1_tile_id) | (1 << worker_2_tile_id);
 
                     possible_next_states.push(Self {
                         heights: self.heights,
@@ -366,27 +365,6 @@ impl GameState for GameState5x5BinaryComposite {
             }
         }
     }
-
-    fn get_flipped_state(&self) -> Self {
-        let mut flipped_rest = 0;
-
-        flipped_rest |= (self.rest & 0x3FF) << 10;
-        flipped_rest |= (self.rest & (0x3FF << 10)) >> 10;
-
-        flipped_rest |= !(self.rest & (1 << 29));
-        if self.has_player_a_won() {
-            flipped_rest |= 1 << 30;
-        }
-        if self.has_player_b_won() {
-            flipped_rest |= 1 << 31;
-        }
-
-        return Self {
-            heights: self.heights,
-            blocked_tiles: self.blocked_tiles,
-            rest: flipped_rest,
-        };
-    }
 }
 
 impl GameState5x5BinaryComposite {
@@ -458,7 +436,7 @@ impl MinimaxReady for GameState5x5BinaryComposite {
         let player_a_workers = self.get_player_a_worker_tiles().iter().map(|&x| x as usize).collect::<Vec<usize>>();
         let player_b_workers = self.get_player_b_worker_tiles().iter().map(|&x| x as usize).collect::<Vec<usize>>();
 
-        let tile_heights = self.get_position_heights();
+        let tile_heights = self.get_tile_heights();
 
         let mut valuation = 0.0;
 

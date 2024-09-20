@@ -36,14 +36,14 @@ impl GameState5x5Binary128bit {
     const NO_NEIGHBOR: usize = usize::MAX;
     const TILE_TO_NEIGHBORS: [[usize; 8]; 25] = Self::precompute_tile_to_neighbors();
     const fn precompute_tile_to_neighbors() -> [[usize; 8]; 25] {
-        let mut position_to_neighbors = [[Self::NO_NEIGHBOR; 8]; 25];
+        let mut tile_to_neighbors = [[Self::NO_NEIGHBOR; 8]; 25];
 
         let mut row: isize = 0;
         while row < 5 {
             let mut column = 0;
             while column < 5 {
                 let tile_id = (row * 5 + column) as usize;
-                let mut position_neighbor_index = 0;
+                let mut tile_neighbor_index = 0;
 
                 let mut neighbor_row = row - 1;
                 while neighbor_row <= row + 1 {
@@ -58,8 +58,8 @@ impl GameState5x5Binary128bit {
                             continue;
                         }
                         let neighbor_tile_id = (neighbor_row * 5 + neighbor_column) as usize;
-                        position_to_neighbors[tile_id][position_neighbor_index] = neighbor_tile_id;
-                        position_neighbor_index += 1;
+                        tile_to_neighbors[tile_id][tile_neighbor_index] = neighbor_tile_id;
+                        tile_neighbor_index += 1;
 
                         neighbor_column += 1;
                     }
@@ -69,18 +69,18 @@ impl GameState5x5Binary128bit {
             }
             row += 1;
         }
-        return position_to_neighbors;
+        return tile_to_neighbors;
     }
 
-    pub fn get_position_heights(&self) -> [u8; 25] {
-        let mut position_heights = [0; 25];
+    pub fn get_tile_heights(&self) -> [u8; 25] {
+        let mut tile_heights = [0; 25];
 
         let mut data = self.0;
         for i in 0..25 {
-            position_heights[i] = (data & 0x7) as u8;
+            tile_heights[i] = (data & 0x7) as u8;
             data >>= 3;
         }
-        return position_heights;
+        return tile_heights;
     }
 
     pub fn get_player_a_worker_tiles(&self) -> [u8; 2] {
@@ -133,22 +133,29 @@ impl GameState for GameState5x5Binary128bit {
         }
 
         // Set worker positions
-        for (worker_tile, bit_offset) in [(generic_game_state.player_a_workers[0], 75), (generic_game_state.player_a_workers[1], 80), (generic_game_state.player_b_workers[0], 85), (generic_game_state.player_b_workers[1], 90)].iter() {
-            if worker_tile == &GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED {
-                binary_state |= (Self::WORKER_NOT_PLACED as u128) << *bit_offset;
-            } else {
-                binary_state |= (*worker_tile as u128) << *bit_offset;
+        if let Some(a_workers) = generic_game_state.player_a_workers {
+            for (index, worker_tile) in a_workers.iter().enumerate() {
+                binary_state |= (*worker_tile as u128) << (75 + 5 * index);
             }
+        } else {
+            binary_state |= ((Self::WORKER_NOT_PLACED as u128) << 75) + ((Self::WORKER_NOT_PLACED as u128) << 80);
+        }
+        if let Some(b_workers) = generic_game_state.player_b_workers {
+            for (index, worker_tile) in b_workers.iter().enumerate() {
+                binary_state |= (*worker_tile as u128) << (85 + 5 * index);
+            }
+        } else {
+            binary_state |= ((Self::WORKER_NOT_PLACED as u128) << 85) + ((Self::WORKER_NOT_PLACED as u128) << 90);
         }
 
         // Set player turn
         binary_state |= (generic_game_state.player_a_turn as u128) << 95;
 
         // Set win bits
-        if generic_game_state.player_a_workers.iter().filter(|&x| *x != GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED).any(|&x| generic_game_state.get_tile_height(x as usize) == 3) {
+        if generic_game_state.has_player_a_won() {
             binary_state |= 1u128 << 127;
         }
-        if generic_game_state.player_b_workers.iter().filter(|&x| *x != GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED).any(|&x| generic_game_state.get_tile_height(x as usize) == 3) {
+        if generic_game_state.has_player_b_won() {
             binary_state |= 1u128 << 126;
         }
 
@@ -156,26 +163,28 @@ impl GameState for GameState5x5Binary128bit {
     }
 
     fn to_generic_game_state(&self) -> GenericSantoriniGameState<5, 5, 2> {
-        let mut tile_heights = [[0; 5]; 5];
-        let mut player_a_workers = [GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED; 2];
-        let mut player_b_workers = [GenericSantoriniGameState::<5, 5, 2>::WORKER_NOT_PLACED; 2];
-        let player_a_turn = self.0 & (1u128 << 95) != 0;
+        let tile_heights = self.get_tile_heights();
+        let player_a_workers = self.get_player_a_worker_tiles();
+        let player_b_workers = self.get_player_b_worker_tiles();
+        let player_a_turn = self.is_player_a_turn();
 
-        let mut state = self.0;
-        for tile_id in 0..25 {
-            tile_heights[tile_id / 5][tile_id % 5] = state as u8 & 0x7;
-            state >>= 3;
+        let mut generic_tile_heights = [[0; 5]; 5];
+        for i in 0..25 {
+            generic_tile_heights[i / 5][i % 5] = tile_heights[i];
         }
 
-        for pos in player_a_workers.iter_mut().chain(player_b_workers.iter_mut()) {
-            let worker_pos = state as u8 & 0x1F;
-            if worker_pos != Self::WORKER_NOT_PLACED {
-                *pos = worker_pos;
-            }
-            state >>= 5;
-        }
+        let generic_player_a_workers = if player_a_workers[0] == Self::WORKER_NOT_PLACED {
+            None
+        } else {
+            Some(player_a_workers)
+        };
+        let generic_player_b_workers = if player_b_workers[0] == Self::WORKER_NOT_PLACED {
+            None
+        } else {
+            Some(player_b_workers)
+        };
 
-        return GenericSantoriniGameState::<5, 5, 2>::new(player_a_workers, player_b_workers, tile_heights, player_a_turn)
+        return GenericSantoriniGameState::<5, 5, 2>::new(generic_player_a_workers, generic_player_b_workers, generic_tile_heights, player_a_turn)
             .expect("Invalid game state");
     }
 
@@ -191,7 +200,7 @@ impl GameState for GameState5x5Binary128bit {
 
         possible_next_states.clear();
 
-        let position_heights = self.get_position_heights();
+        let tile_heights = self.get_tile_heights();
         let is_player_a_turn = self.is_player_a_turn();
 
         let moving_player_workers = if is_player_a_turn { self.get_player_a_worker_tiles() } else { self.get_player_b_worker_tiles() };
@@ -204,17 +213,25 @@ impl GameState for GameState5x5Binary128bit {
             }
         }
 
-        let worker_index_to_place_option = moving_player_workers.iter().position(|&x| x == Self::WORKER_NOT_PLACED);
 
-        if let Some(worker_index_to_place) = worker_index_to_place_option {
-            // Not all workers are placed yet, so the next states are all possible worker placements
-            let worker_bit_offset = if is_player_a_turn { 75 + 5 * worker_index_to_place } else { 85 + 5 * worker_index_to_place };
-            let new_state_base = (self.0 & !(0x1Fu128 << worker_bit_offset)) ^ (1u128 << 95);
+        if moving_player_workers[0] == Self::WORKER_NOT_PLACED {
+            // Workers are not placed yet, so the next states are all possible worker placements
 
-            for tile_id in 0..25 {
-                if !tile_has_worker[tile_id] {
+            let worker_bit_offset = if is_player_a_turn { 75 } else { 85 };
+            let new_state_base = (self.0 & !(0x3FFu128 << worker_bit_offset)) ^ (1u128 << 95);
+
+            for worker_1_tile_id in 0..25 {
+                if tile_has_worker[worker_1_tile_id] {
+                    continue;
+                }
+                for worker_2_tile_id in (worker_1_tile_id + 1)..25 {
+                    if tile_has_worker[worker_2_tile_id] {
+                        continue;
+                    }
+
                     let mut new_state = new_state_base;
-                    new_state |= (tile_id as u128) << worker_bit_offset;
+                    new_state |= (worker_1_tile_id as u128) << worker_bit_offset;
+                    new_state |= (worker_2_tile_id as u128) << (worker_bit_offset + 5);
                     possible_next_states.push(GameState5x5Binary128bit(new_state));
                 }
             }
@@ -222,10 +239,11 @@ impl GameState for GameState5x5Binary128bit {
             return;
         }
 
+
         // All workers are placed, so the next states are all possible worker moves
         for worker_index in 0..2 {
             let worker_tile = moving_player_workers[worker_index] as usize;
-            let worker_height = position_heights[worker_tile];
+            let worker_height = tile_heights[worker_tile];
             let max_movement_height = match worker_height {
                 0 => 1,
                 1 => 2,
@@ -244,7 +262,7 @@ impl GameState for GameState5x5Binary128bit {
                 if tile_has_worker[movement_tile] {
                     continue;
                 }
-                let movement_height = position_heights[movement_tile];
+                let movement_height = tile_heights[movement_tile];
                 if movement_height > max_movement_height {
                     continue;
                 }
@@ -256,7 +274,7 @@ impl GameState for GameState5x5Binary128bit {
                     if tile_has_worker[build_tile] && build_tile != worker_tile {
                         continue;
                     }
-                    let build_height = position_heights[build_tile];
+                    let build_height = tile_heights[build_tile];
                     if build_height >= 4 {
                         continue;
                     }
@@ -275,21 +293,6 @@ impl GameState for GameState5x5Binary128bit {
                 }
             }
         }
-    }
-
-    fn get_flipped_state(&self) -> Self {
-        let mut new_state = self.0;
-        new_state &= !(0xFFFFFu128 << 75); // Clear worker positions
-        new_state |= (self.0 & (0x3FFu128 << 75)) << 10; // Move player A workers to player B workers
-        new_state |= (self.0 & (0x3FFu128 << 85)) >> 10; // Move player B workers to player A workers
-
-        new_state ^= 1u128 << 95; // Flip player turn
-
-        if new_state & (3u128 << 126) != 0 {
-            new_state ^= 3u128 << 126; // Flip win bits
-        }
-
-        return GameState5x5Binary128bit(new_state);
     }
 }
 
@@ -362,7 +365,7 @@ impl MinimaxReady for GameState5x5Binary128bit {
         let player_a_workers = self.get_player_a_worker_tiles().iter().map(|&x| x as usize).collect::<Vec<usize>>();
         let player_b_workers = self.get_player_b_worker_tiles().iter().map(|&x| x as usize).collect::<Vec<usize>>();
 
-        let tile_heights = self.get_position_heights();
+        let tile_heights = self.get_tile_heights();
 
         let mut valuation = 0.0;
 

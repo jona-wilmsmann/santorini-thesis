@@ -1,7 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
-use anyhow::{ensure, Result};
-use plotters::element::{ComposedElement, Drawable};
+use anyhow::{bail, ensure, Result};
 use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 use crate::generic_game_state::GenericGameState;
@@ -9,8 +8,8 @@ use crate::generic_game_state::GenericGameState;
 #[derive(Eq, PartialEq, Ord, PartialOrd)]
 pub struct GenericSantoriniGameState<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> {
     pub player_a_turn: bool,
-    pub player_a_workers: [u8; WORKERS_PER_PLAYER],
-    pub player_b_workers: [u8; WORKERS_PER_PLAYER],
+    pub player_a_workers: Option<[u8; WORKERS_PER_PLAYER]>,
+    pub player_b_workers: Option<[u8; WORKERS_PER_PLAYER]>,
     pub tile_heights: [[u8; COLUMNS]; ROWS],
 }
 
@@ -39,78 +38,54 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> f
 }
 
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
-    pub const WORKER_NOT_PLACED: u8 = u8::MAX;
-
-    pub fn new(player_a_workers: [u8; WORKERS_PER_PLAYER], player_b_workers: [u8; WORKERS_PER_PLAYER], tile_heights: [[u8; COLUMNS]; ROWS], player_a_turn: bool) -> Result<GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER>> {
-        let mut player_a_worker_count = 0;
-        let mut player_b_worker_count = 0;
-
-
-        for (worker_count, workers) in [(&mut player_a_worker_count, &player_a_workers), (&mut player_b_worker_count, &player_b_workers)] {
-            let mut last_worker_not_placed = false;
-
-            for worker in workers {
-                if *worker == Self::WORKER_NOT_PLACED {
-                    last_worker_not_placed = true;
-                    continue;
-                }
-                ensure!(!last_worker_not_placed, "Player workers must be placed in order");
-                *worker_count += 1;
-            }
-        }
-
-        // TODO: At the beginning of the game, player A must place all their workers, then player B must place all their workers
-        // The current implementation has them taking alternating turns, which is incorrect.
-
-        if player_a_worker_count == 0 && player_b_worker_count == 0 {
-            // Beginning of the game, no workers are placed
-            ensure!(player_a_turn, "At the beginning of the game, player A must place the first worker");
-        }
-
-        if player_a_worker_count != WORKERS_PER_PLAYER || player_b_worker_count != WORKERS_PER_PLAYER {
-            // Beginning of the game, not all workers are placed
-            if player_a_turn {
-                ensure!(player_a_worker_count == player_b_worker_count, "During worker placement, if it is player A's turn, both players must have the same amount of workers placed");
-            } else {
-                ensure!(player_a_worker_count == player_b_worker_count + 1, "During worker placement, if it is player B's turn, player A must have one more worker placed than player B");
-            }
-
-            for column in 0..COLUMNS {
-                for row in 0..ROWS {
-                    ensure!(tile_heights[column][row] == 0, "At the beginning of the game, before all workers are placed, all heights must be 0");
-                }
-            }
-        } else {
-            // Normal game state, all workers are placed
-            for column in 0..COLUMNS {
-                for row in 0..ROWS {
-                    ensure!(tile_heights[column][row] <= 4, "Tile {},{} height must be less than or equal to 4", column, row);
-                }
-            }
-        }
-
-
+    pub fn new(player_a_workers: Option<[u8; WORKERS_PER_PLAYER]>, player_b_workers: Option<[u8; WORKERS_PER_PLAYER]>, tile_heights: [[u8; COLUMNS]; ROWS], player_a_turn: bool) -> Result<GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER>> {
         let mut worker_tiles = Vec::with_capacity(WORKERS_PER_PLAYER * 2);
 
+        for workers_option in [player_a_workers, player_b_workers].iter() {
+            if let Some(workers) = workers_option {
+                for worker_tile in workers.iter() {
+                    ensure!(*worker_tile < (ROWS * COLUMNS) as u8, "Worker tile {} is out of bounds, must be less than {}", worker_tile, ROWS * COLUMNS);
+                    ensure!(!worker_tiles.contains(worker_tile), "Worker tiles must be unique, {} is used multiple times", worker_tile);
+                    worker_tiles.push(*worker_tile);
+                }
+            }
+        }
+
+        // Ensure correct tile heights
+        let mut block_count = 0;
         let mut worker_on_height_3_tile = false;
-        for worker_tile in player_a_workers.iter().chain(player_b_workers.iter()) {
-            if *worker_tile == Self::WORKER_NOT_PLACED {
-                continue;
+        for column in 0..COLUMNS {
+            for row in 0..ROWS {
+                let tile_id = row * COLUMNS + column;
+                let height = tile_heights[row][column];
+
+                if worker_tiles.contains(&(tile_id as u8)) {
+                    ensure!(height <= 3, "Worker tile {} cannot have a height of more than 3", tile_id);
+                    if height == 3 {
+                        ensure!(!worker_on_height_3_tile, "Only one worker can be on a height 3 tile");
+                        worker_on_height_3_tile = true;
+                    }
+                } else {
+                    ensure!(height <= 4, "Tile {} height must be less than or equal to 4", tile_id);
+                }
+
+                block_count += height as usize;
             }
+        }
 
-            ensure!(*worker_tile < (ROWS * COLUMNS) as u8, "Worker tile {} is out of bounds, must be less than {}", worker_tile, ROWS * COLUMNS);
-
-            let worker_tile_height = tile_heights[*worker_tile as usize / COLUMNS][*worker_tile as usize % COLUMNS];
-
-            ensure!(worker_tile_height < 4, "Worker tile {} cannot have a height of 4", worker_tile);
-
-            if worker_tile_height == 3 {
-                ensure!(!worker_on_height_3_tile, "Only one worker can be on a height 3 tile");
-                worker_on_height_3_tile = true;
+        if player_a_workers != None && player_b_workers != None {
+            // Setup is complete, all workers are placed
+            ensure!((block_count % 2 == 0) == player_a_turn, "It must be player A's turn if the block count is even, and player B's turn if the block count is odd");
+        } else {
+            // Setup is not complete, not all workers are placed
+            ensure!(block_count == 0, "Block count must be 0 if workers are not placed");
+            if player_a_workers == None && player_b_workers == None {
+                ensure!(player_a_turn, "At the beginning of the game, player A must place their workers first");
+            } else if player_a_workers != None && player_b_workers == None {
+                ensure!(!player_a_turn, "After player A has placed all their workers, player B must place their workers");
+            } else {
+                bail!("Invalid worker placement state");
             }
-
-            ensure!(!worker_tiles.contains(worker_tile), "Worker tiles must be unique, {} is used multiple times", worker_tile);
-            worker_tiles.push(*worker_tile);
         }
 
         return Ok(GenericSantoriniGameState {
@@ -129,14 +104,36 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
         return self.tile_heights[tile_id / COLUMNS][tile_id % COLUMNS];
     }
 
+    pub fn has_player_a_won(&self) -> bool {
+        for worker_tile in self.player_a_workers.iter().flatten() {
+            let row = *worker_tile as usize / COLUMNS;
+            let column = *worker_tile as usize % COLUMNS;
+            if self.tile_heights[row][column] == 3 {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pub fn has_player_b_won(&self) -> bool {
+        for worker_tile in self.player_b_workers.iter().flatten() {
+            let row = *worker_tile as usize / COLUMNS;
+            let column = *worker_tile as usize % COLUMNS;
+            if self.tile_heights[row][column] == 3 {
+                return true;
+            }
+        }
+        return false;
+    }
+
     pub fn get_character_on_tile(&self, tile_id: usize) -> char {
-        return if self.player_a_workers.contains(&(tile_id as u8)) {
-            'A'
-        } else if self.player_b_workers.contains(&(tile_id as u8)) {
-            'B'
-        } else {
-            ' '
-        };
+        if self.player_a_workers.iter().flatten().any(|&x| x as usize == tile_id) {
+            return 'A';
+        }
+        if self.player_b_workers.iter().flatten().any(|&x| x as usize == tile_id) {
+            return 'B';
+        }
+        return ' ';
     }
 }
 
@@ -246,25 +243,19 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
 
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
     fn get_random_worker_positions<RNG: rand::Rng>(rng: &mut RNG) -> ([u8; WORKERS_PER_PLAYER], [u8; WORKERS_PER_PLAYER]) {
-        let mut player_a_workers = [GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::WORKER_NOT_PLACED; WORKERS_PER_PLAYER];
-        let mut player_b_workers = [GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::WORKER_NOT_PLACED; WORKERS_PER_PLAYER];
+        let mut player_a_workers = [0; WORKERS_PER_PLAYER];
+        let mut player_b_workers = [0; WORKERS_PER_PLAYER];
 
-        let mut worker_tiles = Vec::with_capacity(WORKERS_PER_PLAYER * 2);
+        let mut available_tiles = (0..(ROWS * COLUMNS) as u8).collect::<Vec<u8>>();
 
         for i in 0..(WORKERS_PER_PLAYER * 2) {
-            let mut worker_tile;
-            loop {
-                worker_tile = rng.gen_range(0..(ROWS * COLUMNS)) as u8;
-                if !worker_tiles.contains(&worker_tile) {
-                    break;
-                }
-            }
+            let worker_tile_index = rng.gen_range(0..available_tiles.len());
+            let worker_tile = available_tiles.swap_remove(worker_tile_index);
             if i < WORKERS_PER_PLAYER {
                 player_a_workers[i] = worker_tile;
             } else {
                 player_b_workers[i - WORKERS_PER_PLAYER] = worker_tile;
             }
-            worker_tiles.push(worker_tile);
         }
 
         return (player_a_workers, player_b_workers);
@@ -293,7 +284,7 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
 
         let player_a_turn = block_count % 2 == 0;
 
-        return GenericSantoriniGameState::new(player_a_workers, player_b_workers, tile_heights, player_a_turn)
+        return GenericSantoriniGameState::new(Some(player_a_workers), Some(player_b_workers), tile_heights, player_a_turn)
             .expect("Randomly generated invalid game state, this should not be possible");
     }
 
@@ -314,21 +305,21 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
             tile_max_heights[player_b_workers[i] as usize / COLUMNS][player_b_workers[i] as usize % COLUMNS] = 2;
         }
 
-        let mut current_block_count = 0;
-        while current_block_count < block_amount {
-            loop {
-                let tile = rng.gen_range(0..(ROWS * COLUMNS));
-                if tile_heights[tile / COLUMNS][tile % COLUMNS] < tile_max_heights[tile / COLUMNS][tile % COLUMNS] {
-                    tile_heights[tile / COLUMNS][tile % COLUMNS] += 1;
-                    break;
-                }
+        let mut available_tiles = (0..(ROWS * COLUMNS) as u8).collect::<Vec<u8>>();
+
+        for _ in 0..block_amount {
+            let tile_index = rng.gen_range(0..available_tiles.len());
+            let tile_id = available_tiles[tile_index];
+            let tile_height = &mut tile_heights[tile_id as usize / COLUMNS][tile_id as usize % COLUMNS];
+            *tile_height += 1;
+            if *tile_height == tile_max_heights[tile_id as usize / COLUMNS][tile_id as usize % COLUMNS] {
+                available_tiles.swap_remove(tile_index);
             }
-            current_block_count += 1;
         }
 
         let player_a_turn = block_amount % 2 == 0;
 
-        return GenericSantoriniGameState::new(player_a_workers, player_b_workers, tile_heights, player_a_turn)
+        return GenericSantoriniGameState::new(Some(player_a_workers), Some(player_b_workers), tile_heights, player_a_turn)
             .expect("Randomly generated invalid game state, this should not be possible");
     }
 }
