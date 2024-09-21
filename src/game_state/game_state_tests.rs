@@ -253,18 +253,17 @@ mod tests {
             let struct_state = GameState5x5Struct::from_generic_game_state(state_to_test);
             let binary_2_state = GameState5x5BinaryComposite::from_generic_game_state(state_to_test);
 
-            //let child_states_binary = binary_state.get_children_states();
+            let child_states_binary = binary_state.get_children_states();
             let child_states_struct = struct_state.get_children_states();
             let child_states_binary_2 = binary_2_state.get_children_states();
 
-            /*
+
             for child_state in &child_states_binary {
                 let generic_child_state = child_state.to_generic_game_state();
                 let back_converted_state = GameState5x5Binary128bit::from_generic_game_state(&generic_child_state);
                 assert_eq!(child_state.raw_value(), back_converted_state.raw_value());
             }
 
-             */
             for child_state in &child_states_struct {
                 let generic_child_state = child_state.to_generic_game_state();
                 let back_converted_state = GameState5x5Struct::from_generic_game_state(&generic_child_state);
@@ -276,15 +275,15 @@ mod tests {
                 assert_eq!(child_state.raw_value(), back_converted_state.raw_value());
             }
 
-            //let mut generic_child_states_binary = child_states_binary.iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
+            let mut generic_child_states_binary = child_states_binary.iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
             let mut generic_child_states_struct = child_states_struct.iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
             let mut generic_child_states_binary_2 = child_states_binary_2.iter().map(|state| state.to_generic_game_state()).collect::<Vec<GenericSantoriniGameState<5, 5, 2>>>();
 
-            //generic_child_states_binary.sort();
+            generic_child_states_binary.sort();
             generic_child_states_struct.sort();
             generic_child_states_binary_2.sort();
 
-            //assert_eq!(generic_child_states_binary, generic_child_states_struct);
+            assert_eq!(generic_child_states_binary, generic_child_states_struct);
             assert_eq!(generic_child_states_struct, generic_child_states_binary_2);
         }
     }
