@@ -1,4 +1,4 @@
-pub mod gs4x4 {
+pub mod gs4x4_static_evaluation {
     /*
     12 10 9  8
     13 15 11 6
@@ -80,7 +80,7 @@ pub mod gs4x4 {
     }
 }
 
-pub mod gs5x5 {
+pub mod gs5x5_static_evaluation {
     const DISTANCE_TO_STATIC_VALUATION: [f32; 5] = [5.0, 2.0, 1.0, 0.5, 0.0];
     const HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION: [[f32; 5]; 3] = [
         [1.0, 1.5, -1.0, 0.0, -1.0], //Start height 0

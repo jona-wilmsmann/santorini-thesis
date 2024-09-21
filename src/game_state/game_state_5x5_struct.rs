@@ -2,7 +2,7 @@
 use std::fmt;
 use std::fmt::Formatter;
 use crate::game_state::{GameState, MinimaxReady};
-use crate::game_state::utils::static_evaluation::gs5x5;
+use crate::game_state::utils::static_evaluation::gs5x5_static_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use crate::minimax::minimax_cache::MinimaxCache;
 
@@ -253,6 +253,6 @@ impl MinimaxReady for GameState5x5Struct {
     }
 
     fn get_static_evaluation(&self) -> f32 {
-        return gs5x5::get_static_evaluation(self.tile_heights, self.player_a_workers, self.player_b_workers, self.player_a_turn);
+        return gs5x5_static_evaluation::get_static_evaluation(self.tile_heights, self.player_a_workers, self.player_b_workers, self.player_a_turn);
     }
 }

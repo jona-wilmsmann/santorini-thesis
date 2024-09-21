@@ -154,6 +154,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
 
     benchmark_simplified::<GameState4x4Binary3Bit>("Binary 3bit - 4x4", c);
+    benchmark_simplified::<GameState4x4Binary4Bit>("Binary 4bit - 4x4", c);
 
 
     benchmark_continuous_id::<GameState4x4Binary3Bit>("Binary 3bit - 4x4", c);

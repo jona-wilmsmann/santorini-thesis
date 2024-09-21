@@ -1,9 +1,10 @@
 use std::fmt;
 use std::fmt::Formatter;
-use crate::game_state::{GameState, MinimaxReady};
+use crate::game_state::{GameState, MinimaxReady, SimplifiedState};
 
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
-use crate::game_state::utils::static_evaluation::gs4x4;
+use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
+use crate::game_state::utils::symmetric_simplified::gs4x4_symmetric_simplified;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use crate::minimax::minimax_cache::MinimaxCache;
 
@@ -75,7 +76,27 @@ impl GameState4x4Binary4Bit {
     const PLAYER_A_MASK: u64 = 0x8888888888888888;
     const PLAYER_B_MASK: u64 = 0x4444444444444444;
 
+    fn get_player_positions(&self) -> (usize, usize) {
+        let player_a_bits = self.0 & Self::PLAYER_A_MASK;
+        let player_b_bits = self.0 & Self::PLAYER_B_MASK;
+        let cleaned_player_a_bit = player_a_bits & !(player_b_bits << 1);
+        let cleaned_player_b_bit = player_b_bits & !(player_a_bits >> 1);
+        let player_a_position = cleaned_player_a_bit.trailing_zeros() as usize / 4;
+        let player_b_position = cleaned_player_b_bit.trailing_zeros() as usize / 4;
+
+        return (player_a_position, player_b_position);
+    }
+
     fn has_internal_player_a_won(&self) -> bool {
+        let player_a_bits = self.0 & Self::PLAYER_A_MASK;
+        if player_a_bits == 0 {
+            return false;
+        }
+        let player_b_bits = self.0 & Self::PLAYER_B_MASK;
+        let cleaned_player_a_bit = player_a_bits & !(player_b_bits << 1);
+        let player_a_position = cleaned_player_a_bit.trailing_zeros() / 4;
+        return ((self.0 >> (player_a_position * 4)) & 3) == 3;
+
         // The player_a_bits might include the 1100 special case for height 4, but in that case, the relevant height bits will be 0
         // Therefore, the player_a_bits_heights only include the actual height bits for player A
         let player_a_bits = self.0 & Self::PLAYER_A_MASK;
@@ -84,6 +105,15 @@ impl GameState4x4Binary4Bit {
     }
 
     fn has_internal_player_b_won(&self) -> bool {
+        let player_b_bits = self.0 & Self::PLAYER_B_MASK;
+        if player_b_bits == 0 {
+            return false;
+        }
+        let player_a_bits = self.0 & Self::PLAYER_A_MASK;
+        let cleaned_player_b_bit = player_b_bits & !(player_a_bits << 1);
+        let player_b_position = cleaned_player_b_bit.trailing_zeros() / 4;
+        return ((self.0 >> (player_b_position * 4)) & 3) == 3;
+
         let player_b_bits = self.0 & Self::PLAYER_B_MASK;
         let player_b_bits_heights = self.0 & (player_b_bits >> 1 | player_b_bits >> 2);
         return player_b_bits_heights.count_ones() == 2;
@@ -102,6 +132,7 @@ impl GameState for GameState4x4Binary4Bit {
         self.0
     }
 
+    #[inline(always)]
     fn is_player_a_turn(&self) -> bool {
         return if self.0 & Self::PLAYER_A_MASK != 0 {
             // Workers are placed
@@ -349,9 +380,68 @@ impl MinimaxReady for GameState4x4Binary4Bit {
         // TODO Handle turn if workers not placed
 
         return if block_count % 2 == 0 {
-            gs4x4::get_static_evaluation(position_heights, player_a_position, player_b_position, true)
+            gs4x4_static_evaluation::get_static_evaluation(position_heights, player_a_position, player_b_position, true)
         } else {
-            gs4x4::get_static_evaluation(position_heights, player_b_position, player_a_position, false)
+            gs4x4_static_evaluation::get_static_evaluation(position_heights, player_b_position, player_a_position, false)
         };
+    }
+}
+
+impl SimplifiedState for GameState4x4Binary4Bit {
+    fn get_simplified_state(&self) -> Self {
+        if self.0 & Self::PLAYER_A_MASK == 0 || self.0 & Self::PLAYER_B_MASK == 0 {
+            // Setup phase states are always considered simplified
+            return *self;
+        }
+
+        let (player_a_position, player_b_position) = self.get_player_positions();
+
+        let transposition_type = gs4x4_symmetric_simplified::PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE[player_a_position][player_b_position];
+
+        let ccw_rotations = transposition_type as u64 % 4;
+        let diagonal_mirroring = transposition_type >= 4;
+
+        let mut new_state = match ccw_rotations {
+            0 => self.0,
+            1 => (self.0 << 16) | (self.0 >> 48),
+            2 => (self.0 << 32) | (self.0 >> 32),
+            3 => (self.0 << 48) | (self.0 >> 16),
+            _ => panic!("Invalid rotation")
+        };
+
+        if diagonal_mirroring {
+            let mut mirrored_height_information = 0;
+            for original_pos in 0..16 {
+                let mirrored_pos = gs4x4_symmetric_simplified::POS_TO_DIAGONALLY_MIRRORED_POS[original_pos];
+
+                let original_tile = (self.0 >> (original_pos * 4)) & 0xF;
+                mirrored_height_information |= original_tile << (mirrored_pos * 4);
+            }
+            new_state = mirrored_height_information;
+        }
+
+        return Self(new_state);
+    }
+
+    fn is_simplified(&self) -> bool {
+        if self.0 & Self::PLAYER_A_MASK == 0 || self.0 & Self::PLAYER_B_MASK == 0 {
+            // Setup phase states are always considered simplified
+            return true;
+        }
+
+        let (player_a_position, player_b_position) = self.get_player_positions();
+
+
+        for combination in gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
+            if player_a_position == combination.player_a_position {
+                for i in 0..combination.player_b_options {
+                    if player_b_position == combination.player_b_positions[i] {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+        return false;
     }
 }

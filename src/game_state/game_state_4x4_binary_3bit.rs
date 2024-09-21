@@ -5,7 +5,8 @@ use once_cell::sync::Lazy;
 use crate::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, MinimaxReady};
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
-use crate::game_state::utils::static_evaluation::gs4x4;
+use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
+use crate::game_state::utils::symmetric_simplified::gs4x4_symmetric_simplified;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use crate::minimax::minimax_cache::MinimaxCache;
 
@@ -303,99 +304,7 @@ impl MinimaxReady for GameState4x4Binary3Bit {
         let player_b_position = self.get_player_b_position() as u8;
         let position_heights = self.get_position_heights();
 
-        return gs4x4::get_static_evaluation(position_heights, player_a_position, player_b_position, self.is_player_a_turn());
-    }
-}
-
-/*
-0 => 0 deg ccw
-1 => 90 deg ccw
-2 => 180 deg ccw
-3 => 270 deg ccw
-4 => 0 deg ccw + diagonal mirror
-5 => 90 deg ccw + diagonal mirror
-6 => 180 deg ccw + diagonal mirror
-7 => 270 deg ccw + diagonal mirror
- */
-type SymmetricMirrorType = u8;
-
-impl GameState4x4Binary3Bit {
-    const POS_TO_DIAGONALLY_MIRRORED_POS: [u64; 16] = Self::precompute_pos_to_diagonally_mirrored_pos();
-    const fn precompute_pos_to_diagonally_mirrored_pos() -> [u64; 16] {
-        let mut pos_to_diagonally_mirrored_pos = [0; 16];
-        let mut tile_id = 0;
-        while tile_id < 16 {
-            let row = tile_id / 4;
-            let column = tile_id % 4;
-            let diagonally_mirrored_row = column;
-            let diagonally_mirrored_column = row;
-            let diagonally_mirrored_tile_id = diagonally_mirrored_row * 4 + diagonally_mirrored_column;
-
-            let pos = Self::TILE_ID_TO_POSITION[tile_id];
-            let diagonally_mirrored_pos = Self::TILE_ID_TO_POSITION[diagonally_mirrored_tile_id];
-            pos_to_diagonally_mirrored_pos[pos] = diagonally_mirrored_pos as u64;
-
-            tile_id += 1;
-        }
-        return pos_to_diagonally_mirrored_pos;
-    }
-
-    const fn get_rotated_tile_id(tile_id: usize, ccw_90_rotations: usize) -> usize {
-        let mut new_tile_id = tile_id;
-        const ROTATION_MAP: [usize; 16] = [3, 7, 11, 15, 2, 6, 10, 14, 1, 5, 9, 13, 0, 4, 8, 12];
-        let mut i = 0;
-        while i < ccw_90_rotations {
-            new_tile_id = ROTATION_MAP[new_tile_id];
-            i += 1;
-        }
-
-        return new_tile_id;
-    }
-
-    const PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE: [[SymmetricMirrorType; 16]; 16] =
-        Self::precompute_mirror_types();
-
-    const fn precompute_mirror_types() -> [[SymmetricMirrorType; 16]; 16] {
-        let mut player_a_pos_player_b_pos_to_mirror_type = [[0; 16]; 16];
-
-        let mut player_a_tile = 0;
-        while player_a_tile < 16 {
-            let player_a_pos = Self::TILE_ID_TO_POSITION[player_a_tile];
-            let mut player_b_tile = 0;
-            while player_b_tile < 16 {
-                let player_b_pos = Self::TILE_ID_TO_POSITION[player_b_tile];
-
-                let ccw_rotations = match player_a_tile {
-                    0 | 1 | 4 | 5 => 0,
-                    2 | 3 | 6 | 7 => 3,
-                    10 | 11 | 14 | 15 => 2,
-                    8 | 9 | 12 | 13 => 1,
-                    _ => panic!("Invalid tile id")
-                };
-
-                let player_a_tile_rotated = Self::get_rotated_tile_id(player_a_tile, ccw_rotations);
-                let diagonal_mirroring = if player_a_tile_rotated == 4 {
-                    true
-                } else if player_a_tile_rotated == 1 {
-                    false
-                } else {
-                    let player_b_tile_rotated = Self::get_rotated_tile_id(player_b_tile, ccw_rotations);
-                    match player_b_tile_rotated {
-                        4 | 8 | 9 | 12 | 13 | 14 => true,
-                        _ => false
-                    }
-                };
-
-
-                let mirror_type: SymmetricMirrorType = ccw_rotations as u8 + if diagonal_mirroring { 4 } else { 0 };
-                player_a_pos_player_b_pos_to_mirror_type[player_a_pos][player_b_pos] = mirror_type;
-
-                player_b_tile += 1;
-            }
-            player_a_tile += 1;
-        }
-
-        return player_a_pos_player_b_pos_to_mirror_type;
+        return gs4x4_static_evaluation::get_static_evaluation(position_heights, player_a_position, player_b_position, self.is_player_a_turn());
     }
 }
 
@@ -411,7 +320,7 @@ impl SimplifiedState for GameState4x4Binary3Bit {
         let player_a_position = self.get_player_a_position();
         let player_b_position = self.get_player_b_position();
 
-        let transposition_type = Self::PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE[player_a_position as usize][player_b_position as usize];
+        let transposition_type = gs4x4_symmetric_simplified::PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE[player_a_position as usize][player_b_position as usize];
 
         let ccw_rotations = transposition_type as u64 % 4;
         let diagonal_mirroring = transposition_type >= 4;
@@ -427,7 +336,7 @@ impl SimplifiedState for GameState4x4Binary3Bit {
         if diagonal_mirroring {
             let mut mirrored_height_information = 0;
             for original_pos in 0..16 {
-                let mirrored_pos = Self::POS_TO_DIAGONALLY_MIRRORED_POS[original_pos];
+                let mirrored_pos = gs4x4_symmetric_simplified::POS_TO_DIAGONALLY_MIRRORED_POS[original_pos];
 
                 let original_height = (new_height_information >> (original_pos * 3)) & 0x7;
                 mirrored_height_information |= original_height << (mirrored_pos * 3);
@@ -438,8 +347,8 @@ impl SimplifiedState for GameState4x4Binary3Bit {
         let mut new_player_a_position = (player_a_position + ccw_rotations * 4) % 16;
         let mut new_player_b_position = (player_b_position + ccw_rotations * 4) % 16;
         if diagonal_mirroring {
-            new_player_a_position = Self::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_a_position as usize];
-            new_player_b_position = Self::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_b_position as usize];
+            new_player_a_position = gs4x4_symmetric_simplified::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_a_position as usize];
+            new_player_b_position = gs4x4_symmetric_simplified::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_b_position as usize];
         }
 
         let new_state = new_height_information | (new_player_a_position << 48) | (new_player_b_position << 53) | status_information;
@@ -457,7 +366,7 @@ impl SimplifiedState for GameState4x4Binary3Bit {
         let player_b_position = self.get_player_b_position() as usize;
 
 
-        for combination in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
+        for combination in gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
             if player_a_position == combination.player_a_position {
                 for i in 0..combination.player_b_options {
                     if player_b_position == combination.player_b_positions[i] {
@@ -471,76 +380,11 @@ impl SimplifiedState for GameState4x4Binary3Bit {
     }
 }
 
-const INVALID_INDEX: usize = usize::MAX;
-
-#[derive(Copy, Clone)]
-struct SimplifiedStateVariant {
-    player_a_position: usize,
-    player_b_options: usize,
-    player_b_positions: [usize; 15],
-    total_possible_states: u64,
-}
-
-impl SimplifiedStateVariant {
-    const fn new(player_a_tile_id: usize, player_b_tile_ids: [usize; 15]) -> Self {
-        let mut player_b_options = 0;
-        let mut player_b_positions = [INVALID_INDEX; 15];
-
-        let mut i = 0;
-        while i < player_b_tile_ids.len() {
-            let player_b_tile_id = player_b_tile_ids[i];
-            if player_b_tile_id == INVALID_INDEX {
-                break;
-            }
-            player_b_positions[i] = GameState4x4Binary3Bit::TILE_ID_TO_POSITION[player_b_tile_id];
-            player_b_options += 1;
-            i += 1;
-        }
-
-        let total_possible_states = player_b_options as u64 * 3u64.pow(2) * 5u64.pow(14);
-
-        return Self {
-            player_a_position: GameState4x4Binary3Bit::TILE_ID_TO_POSITION[player_a_tile_id],
-            player_b_options,
-            player_b_positions,
-            total_possible_states,
-        };
-    }
-}
-
-impl GameState4x4Binary3Bit {
-    const POSSIBLE_SIMPLIFIED_STATE_VARIANTS: [SimplifiedStateVariant; 3] = [
-        SimplifiedStateVariant::new(
-            0,
-            [1, 2, 3, 5, 6, 7, 10, 11, 15, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX],
-        ),
-        SimplifiedStateVariant::new(
-            1,
-            [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        ),
-        SimplifiedStateVariant::new(
-            5,
-            [0, 1, 2, 3, 6, 7, 10, 11, 15, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX, INVALID_INDEX],
-        ),
-    ];
-
-    const SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS: usize = Self::precompute_summed_possible_simplified_state_options();
-    const fn precompute_summed_possible_simplified_state_options() -> usize {
-        let mut summed_possible_simplified_state_options = 0;
-        let mut variant_index = 0;
-        while variant_index < Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.len() {
-            summed_possible_simplified_state_options += Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS[variant_index].player_b_options;
-            variant_index += 1;
-        }
-        return summed_possible_simplified_state_options;
-    }
-}
-
 impl ContinuousId for GameState4x4Binary3Bit {
     fn get_continuous_id_count() -> u64 {
         let mut continuous_id_count = 0;
 
-        for variant in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
+        for variant in gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
             continuous_id_count += variant.total_possible_states;
         }
 
@@ -554,13 +398,13 @@ impl ContinuousId for GameState4x4Binary3Bit {
         debug_assert!(self.is_simplified());
 
 
-        let matching_variant_index = Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter().position(|&x| x.player_a_position == player_a_position as usize)
+        let matching_variant_index = gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter().position(|&x| x.player_a_position == player_a_position as usize)
             .expect("No variant matching player A position found, this can only happen for non simplified states");
-        let matching_variant = &Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS[matching_variant_index];
+        let matching_variant = &gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS[matching_variant_index];
 
         let mut variant_offset = 0;
         for i in 0..matching_variant_index {
-            variant_offset += Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS[i].total_possible_states;
+            variant_offset += gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS[i].total_possible_states;
         }
 
         let player_b_position_index = matching_variant.player_b_positions.iter().position(|&x| x == player_b_position as usize)
@@ -587,7 +431,7 @@ impl ContinuousId for GameState4x4Binary3Bit {
 
     fn from_continuous_id(mut continuous_id: u64) -> Self {
         let mut matching_variant_option = None;
-        for variant in Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
+        for variant in gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
             if continuous_id < variant.total_possible_states {
                 matching_variant_option = Some(variant);
                 break;
@@ -670,7 +514,7 @@ impl TileHeightCombination {
             get_binomial_coefficient(14 - height_4_tiles as u64, height_3_tiles as u64) *
             get_binomial_coefficient(14 - height_4_tiles as u64 - height_3_tiles as u64, height_2_tiles as u64) *
             get_binomial_coefficient(14 - height_4_tiles as u64 - height_3_tiles as u64 - height_2_tiles as u64, height_1_tiles as u64) *
-            GameState4x4Binary3Bit::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64; // Player A and B positions
+            gs4x4_symmetric_simplified::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64; // Player A and B positions
 
 
         return Self {
@@ -997,9 +841,9 @@ impl ContinuousBlockId for GameState4x4Binary3Bit {
             }
         }
 
-        let mut continuous_id = combination_id_offset + tile_id_offset * Self::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64;
+        let mut continuous_id = combination_id_offset + tile_id_offset * gs4x4_symmetric_simplified::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64;
 
-        for variant in &Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS {
+        for variant in &gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS {
             if player_a_position as usize == variant.player_a_position {
                 let player_b_position_index = variant.player_b_positions.iter().position(|&x| x == player_b_position as usize)
                     .expect("Player B position not found, this can only happen for non simplified states");
@@ -1022,12 +866,12 @@ impl ContinuousBlockId for GameState4x4Binary3Bit {
         let mut position_heights = [0; 16];
 
 
-        let mut option_index = continuous_id % Self::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64;
-        continuous_id /= Self::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64;
+        let mut option_index = continuous_id % gs4x4_symmetric_simplified::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64;
+        continuous_id /= gs4x4_symmetric_simplified::SUMMED_POSSIBLE_SIMPLIFIED_STATE_OPTIONS as u64;
 
         let mut player_a_position_option = None;
         let mut player_b_position_option = None;
-        for variant in &Self::POSSIBLE_SIMPLIFIED_STATE_VARIANTS {
+        for variant in &gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS {
             if option_index < variant.player_b_options as u64 {
                 player_a_position_option = Some(variant.player_a_position);
                 player_b_position_option = Some(variant.player_b_positions[option_index as usize]);

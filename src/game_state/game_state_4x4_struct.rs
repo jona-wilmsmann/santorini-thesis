@@ -4,7 +4,7 @@ use crate::game_state::{GameState, MinimaxReady};
 use crate::game_state::game_state_5x5_struct::GameState5x5Struct;
 
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
-use crate::game_state::utils::static_evaluation::gs4x4;
+use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use crate::minimax::minimax_cache::MinimaxCache;
 
@@ -245,6 +245,6 @@ impl MinimaxReady for GameState4x4Struct {
     }
 
     fn get_static_evaluation(&self) -> f32 {
-        return gs4x4::get_static_evaluation(self.tile_heights, self.player_a_worker, self.player_b_worker, self.player_a_turn);
+        return gs4x4_static_evaluation::get_static_evaluation(self.tile_heights, self.player_a_worker, self.player_b_worker, self.player_a_turn);
     }
 }
