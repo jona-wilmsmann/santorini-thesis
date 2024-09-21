@@ -20,6 +20,24 @@ fn benchmark_game_state<GS: GameState>(name: &str, c: &mut Criterion) {
 
     group.sample_size(10);
 
+    group.bench_function("get 1,000,000 player to move", |b| b.iter(|| {
+        for state in &random_states {
+            black_box(state.is_player_a_turn());
+        }
+    }));
+
+    group.bench_function("get 1,000,000 player a won", |b| b.iter(|| {
+        for state in &random_states {
+            black_box(state.has_player_a_won());
+        }
+    }));
+
+    group.bench_function("get 1,000,000 player b won", |b| b.iter(|| {
+        for state in &random_states {
+            black_box(state.has_player_b_won());
+        }
+    }));
+
     group.bench_function("generate 1,000,000 children states", |b| b.iter(|| {
         for state in &random_states {
             black_box(state.get_children_states());

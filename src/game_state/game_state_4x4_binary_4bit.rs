@@ -17,8 +17,7 @@ For each tile:
 - Bits 0-1: Height (0-3)
 - Bit 2: Opponent present
 - Bit 3: Player present
-- Special case: Height 4 is represented as bits 0-2 being 111, in which case no opponent is present
-- Special case: Opponent on height 3 tile is represented as bits 0-3 being 1111
+- Special case: Height 4 is represented as 1100 (This is acceptable because no worker can be placed on height 4)
  */
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub struct GameState4x4Binary4Bit(u64);
@@ -55,7 +54,7 @@ impl GameState4x4Binary4Bit {
                     }
                     let mut neighbor_column = column - 1;
                     while neighbor_column <= column + 1 {
-                        if neighbor_column < 0 || neighbor_column >= 4 || (neighbor_row == row && neighbor_column == column){
+                        if neighbor_column < 0 || neighbor_column >= 4 || (neighbor_row == row && neighbor_column == column) {
                             neighbor_column += 1;
                             continue;
                         }
@@ -76,43 +75,18 @@ impl GameState4x4Binary4Bit {
     const PLAYER_A_MASK: u64 = 0x8888888888888888;
     const PLAYER_B_MASK: u64 = 0x4444444444444444;
 
-    fn get_block_count(&self) -> u64 {
-        let mut block_count = 0;
-        let mut state = self.0;
-        for _ in 0..16 {
-            let tile_info = state & 0xF;
-            if tile_info == 0b1111 {
-                // Special case for player B on height 3
-                block_count += 3;
-            } else if tile_info == 0b0111 {
-                // Special case for height 4
-                block_count += 4;
-            } else {
-                block_count += tile_info & 0x3;
-            }
-            state >>= 4;
-        }
-        return block_count;
-    }
-
     fn has_internal_player_a_won(&self) -> bool {
-        let player_a_bit = self.0 & Self::PLAYER_A_MASK;
-        if player_a_bit.count_ones() != 1 {
-            // Either no workers are placed or player B has won
-            return false;
-        }
-        let player_a_position = (player_a_bit.trailing_zeros() / 4) as usize;
-
-        let player_a_height = (self.0 >> (player_a_position * 4)) & 0x3;
-
-        return player_a_height == 3;
+        // The player_a_bits might include the 1100 special case for height 4, but in that case, the relevant height bits will be 0
+        // Therefore, the player_a_bits_heights only include the actual height bits for player A
+        let player_a_bits = self.0 & Self::PLAYER_A_MASK;
+        let player_a_bits_heights = self.0 & (player_a_bits >> 2 | player_a_bits >> 3);
+        return player_a_bits_heights.count_ones() == 2;
     }
 
     fn has_internal_player_b_won(&self) -> bool {
-        let player_a_bit = self.0 & Self::PLAYER_A_MASK;
-
-        // There can only be two player A bits if the special case for player B on height 3 is present
-        return player_a_bit.count_ones() == 2;
+        let player_b_bits = self.0 & Self::PLAYER_B_MASK;
+        let player_b_bits_heights = self.0 & (player_b_bits >> 1 | player_b_bits >> 2);
+        return player_b_bits_heights.count_ones() == 2;
     }
 }
 
@@ -129,15 +103,16 @@ impl GameState for GameState4x4Binary4Bit {
     }
 
     fn is_player_a_turn(&self) -> bool {
-        let block_count = self.get_block_count();
         return if self.0 & Self::PLAYER_A_MASK != 0 {
             // Workers are placed
-            block_count % 2 == 0
+            let lowest_bit_mask = 0x1111111111111111;
+            let block_count_even = (self.0 & lowest_bit_mask).count_ones() % 2 == 0;
+            block_count_even
         } else {
             // If neither worker is placed, it is generic player A's turn.
             // If worker B is placed but worker A isn't, it must mean that generic player A has just placed it, and it is generic player B's turn.
             self.0 & Self::PLAYER_B_MASK == 0
-        }
+        };
     }
 
     fn has_player_a_won(&self) -> bool {
@@ -145,7 +120,7 @@ impl GameState for GameState4x4Binary4Bit {
             self.has_internal_player_a_won()
         } else {
             self.has_internal_player_b_won()
-        }
+        };
     }
 
     fn has_player_b_won(&self) -> bool {
@@ -153,13 +128,11 @@ impl GameState for GameState4x4Binary4Bit {
             self.has_internal_player_b_won()
         } else {
             self.has_internal_player_a_won()
-        }
+        };
     }
 
 
     fn from_generic_game_state(generic_game_state: &GenericSantoriniGameState<4, 4, 1>) -> Self {
-        let mut binary_game_state = 0;
-
         let generic_player_a_tile = generic_game_state.player_a_workers.unwrap_or([u8::MAX])[0] as usize;
         let generic_player_b_tile = generic_game_state.player_b_workers.unwrap_or([u8::MAX])[0] as usize;
         let internal_player_a_tile = if generic_game_state.player_a_turn {
@@ -173,18 +146,25 @@ impl GameState for GameState4x4Binary4Bit {
             generic_player_a_tile
         };
 
+        let mut binary_game_state = 0;
 
-        for i in 0..16 {
-            let position = Self::TILE_ID_TO_POSITION[i];
-            let height = if generic_game_state.tile_heights[i / 4][i % 4] == 4 { 7 } else { generic_game_state.tile_heights[i / 4][i % 4] };
-            let player_present = internal_player_a_tile == i;
-            let opponent_present = internal_player_b_tile == i;
-            let info = if height == 3 && opponent_present {
-                0b1111
+        for position in (0..16).rev() {
+            binary_game_state <<= 4;
+            let tile_id = Self::POSITION_TO_TILE_ID[position];
+            let height = generic_game_state.get_tile_height(tile_id);
+
+            let mut info;
+            if height == 4 {
+                info = 0b1100;
             } else {
-                (height as u64) | (player_present as u64) << 3 | (opponent_present as u64) << 2
-            };
-            binary_game_state |= info << (position * 4);
+                info = height as u64;
+                if internal_player_a_tile == tile_id {
+                    info |= 0b1000;
+                } else if internal_player_b_tile == tile_id {
+                    info |= 0b0100;
+                }
+            }
+            binary_game_state |= info;
         }
 
         return Self(binary_game_state);
@@ -195,23 +175,21 @@ impl GameState for GameState4x4Binary4Bit {
         let mut internal_player_a_tiles = None;
         let mut internal_player_b_tiles = None;
 
-        for i in 0..16 {
-            let position = Self::TILE_ID_TO_POSITION[i];
-            let info = (self.0 >> (position * 4)) & 0xF;
+        let mut state = self.0;
 
-            if info == 0b1111 {
-                tile_heights[i / 4][i % 4] = 3;
-                internal_player_b_tiles = Some([i as u8]);
+        for position in 0..16 {
+            let tile_id = Self::POSITION_TO_TILE_ID[position];
+            let info = state & 0xF;
+            state >>= 4;
 
-            } else if info == 0b0111 {
-                tile_heights[i / 4][i % 4] = 4;
-
+            if info == 0b1100 {
+                tile_heights[tile_id / 4][tile_id % 4] = 4;
             } else {
-                tile_heights[i / 4][i % 4] = (info & 0x3) as u8;
+                tile_heights[tile_id / 4][tile_id % 4] = (info & 0x3) as u8;
                 if info & 0x8 != 0 {
-                    internal_player_a_tiles = Some([i as u8]);
+                    internal_player_a_tiles = Some([tile_id as u8]);
                 } else if info & 0x4 != 0 {
-                    internal_player_b_tiles = Some([i as u8]);
+                    internal_player_b_tiles = Some([tile_id as u8]);
                 }
             }
         }
@@ -243,32 +221,28 @@ impl GameState for GameState4x4Binary4Bit {
 
         possible_next_states.clear();
 
-        const PLAYER_B_HEIGHT_MASK: u64 = 0x3333333333333333;
-        const PLAYER_B_ADDITION_MASK: u64 = 0x1111111111111111;
-        let cleaned_player_b_state = self.0 & !((self.0 & PLAYER_B_HEIGHT_MASK) + PLAYER_B_ADDITION_MASK);
-        let player_b_bit = cleaned_player_b_state & Self::PLAYER_B_MASK;
-        // Current player B becomes player A, player B is cleared so that it can be set later
-        let flipped_base_state = (self.0 & !Self::PLAYER_A_MASK) + player_b_bit;
+        let player_a_bits = self.0 & Self::PLAYER_A_MASK;
+        let player_b_bits = self.0 & Self::PLAYER_B_MASK;
+        let cleaned_player_a_bit = player_a_bits & !(player_b_bits << 1);
+        let cleaned_player_b_bit = player_b_bits & !(player_a_bits >> 1);
 
+        let mut flipped_base_state = (self.0 & !cleaned_player_a_bit) + cleaned_player_b_bit;
 
-
-        let player_a_bit = self.0 & Self::PLAYER_A_MASK;
-
-        if player_a_bit == 0 {
-            let player_b_position = if player_b_bit == 0 { usize::MAX } else { (player_b_bit.trailing_zeros() / 4) as usize };
-            // No workers placed
-            for i in 0..16 {
-                if i == player_b_position {
-                    // Worker B is placed
-                    continue;
+        if player_a_bits == 0 {
+            // No worker placed
+            let mut new_worker_mask = 0b0100;
+            for _ in 0..16 {
+                // This check works because we are comparing the mask for the new flipped state (where the worker will be worker B)
+                if new_worker_mask != cleaned_player_b_bit {
+                    let new_state = flipped_base_state | new_worker_mask;
+                    possible_next_states.push(Self(new_state));
                 }
-                let new_state = flipped_base_state | (0b0100 << (i * 4));
-                possible_next_states.push(Self(new_state));
+                new_worker_mask <<= 4;
             }
             return;
         }
 
-        let player_a_position = (player_a_bit.trailing_zeros() / 4) as usize;
+        let player_a_position = (cleaned_player_b_bit.trailing_zeros() / 4) as usize;
         let movement_neighbor_mask = Self::POSITION_TO_NEIGHBOR_MASK[player_a_position];
 
         let player_a_height = (self.0 >> (player_a_position * 4)) & 0x3;
@@ -310,13 +284,9 @@ impl GameState for GameState4x4Binary4Bit {
                 let build_position = (new_build_positions + seen_build_positions) as usize;
 
                 let mut new_state = (flipped_base_state | (0b0100 << (movement_position * 4))) + (1 << (build_position * 4));
-                if (new_state >> (movement_position * 4)) & 0b0011 == 0b0011 {
-                    // Active player reached height 3. They are player B in the flipped state, therefore the special case for player B on height 3 is used
-                    new_state |= 0b1111 << (movement_position * 4);
-                }
                 if (new_state >> (build_position * 4)) & 0b0100 != 0 {
                     // Special case for incrementing height from 3 to 4
-                    new_state |= 0b0011 << (build_position * 4);
+                    new_state |= 0b1100 << (build_position * 4);
                 }
 
 
@@ -358,23 +328,19 @@ impl MinimaxReady for GameState4x4Binary4Bit {
         let mut block_count = 0;
 
         let mut state = self.0;
-        for i in 0..16 {
-            let tile_info = (state & 0xF) as u8;
-            if tile_info == 0b1111 {
-                player_b_position = i as u8;
-                position_heights[i] = 3;
-                block_count += 3;
-            } else if tile_info == 0b0111 {
-                position_heights[i] = 4;
+        for position in 0..16 {
+            let info = (state & 0xF) as u8;
+            if info == 0b1100 {
+                position_heights[position] = 4;
                 block_count += 4;
             } else {
-                let height = tile_info & 0x3;
-                position_heights[i] = height;
+                let height = info & 0x3;
+                position_heights[position] = height;
                 block_count += height;
-                if tile_info & 0x8 != 0 {
-                    player_a_position = i as u8;
-                } else if tile_info & 0x4 != 0 {
-                    player_b_position = i as u8;
+                if info & 0x8 != 0 {
+                    player_a_position = position as u8;
+                } else if info & 0x4 != 0 {
+                    player_b_position = position as u8;
                 }
             }
             state >>= 4;
@@ -386,6 +352,6 @@ impl MinimaxReady for GameState4x4Binary4Bit {
             gs4x4::get_static_evaluation(position_heights, player_a_position, player_b_position, true)
         } else {
             gs4x4::get_static_evaluation(position_heights, player_b_position, player_a_position, false)
-        }
+        };
     }
 }

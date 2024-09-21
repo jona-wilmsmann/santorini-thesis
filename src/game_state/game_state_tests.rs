@@ -10,7 +10,7 @@ mod tests {
     use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
     use crate::generic_game_state::GenericGameState;
 
-    fn find_4x4_generic_conversion_discrepancies(tries: usize) {
+    fn find_4x4_generic_discrepancies(tries: usize) {
         let mut states_to_test = Vec::with_capacity(tries + 2);
 
         let generic_state_with_no_workers = GenericSantoriniGameState::<4, 4, 1>::new(
@@ -44,6 +44,15 @@ mod tests {
             assert_eq!(state_to_test, converted_generic_state_3b);
             assert_eq!(state_to_test, converted_generic_state_4b);
             assert_eq!(state_to_test, converted_generic_state_struct);
+
+            assert_eq!(state_3b.is_player_a_turn(), state_4b.is_player_a_turn());
+            assert_eq!(state_3b.is_player_a_turn(), state_struct.is_player_a_turn());
+
+            assert_eq!(state_3b.has_player_a_won(), state_4b.has_player_a_won());
+            assert_eq!(state_3b.has_player_a_won(), state_struct.has_player_a_won());
+
+            assert_eq!(state_3b.has_player_b_won(), state_4b.has_player_b_won());
+            assert_eq!(state_3b.has_player_b_won(), state_struct.has_player_b_won());
         }
     }
 
@@ -106,7 +115,7 @@ mod tests {
         }
     }
 
-    fn find_5x5_generic_conversion_discrepancies(tries: usize) {
+    fn find_5x5_generic_discrepancies(tries: usize) {
         let mut states_to_test = Vec::with_capacity(tries + 2);
 
         let generic_state_with_no_workers = GenericSantoriniGameState::<5, 5, 2>::new(
@@ -140,6 +149,15 @@ mod tests {
             assert_eq!(state_to_test, converted_generic_state_binary);
             assert_eq!(state_to_test, converted_generic_state_struct);
             assert_eq!(state_to_test, converted_generic_state_binary_2);
+
+            assert_eq!(binary_state.is_player_a_turn(), struct_state.is_player_a_turn());
+            assert_eq!(binary_state.is_player_a_turn(), binary_2_state.is_player_a_turn());
+
+            assert_eq!(binary_state.has_player_a_won(), struct_state.has_player_a_won());
+            assert_eq!(binary_state.has_player_a_won(), binary_2_state.has_player_a_won());
+
+            assert_eq!(binary_state.has_player_b_won(), struct_state.has_player_b_won());
+            assert_eq!(binary_state.has_player_b_won(), binary_2_state.has_player_b_won());
         }
     }
 
@@ -206,8 +224,8 @@ mod tests {
     }
 
     #[test]
-    fn test_find_4x4_generic_conversion_discrepancies() {
-        find_4x4_generic_conversion_discrepancies(100000);
+    fn test_find_4x4_generic_discrepancies() {
+        find_4x4_generic_discrepancies(100000);
     }
 
     #[test]
@@ -216,8 +234,8 @@ mod tests {
     }
 
     #[test]
-    fn test_find_5x5_generic_conversion_discrepancies() {
-        find_5x5_generic_conversion_discrepancies(10000);
+    fn test_find_5x5_generic_discrepancies() {
+        find_5x5_generic_discrepancies(10000);
     }
 
     #[test]
