@@ -6,7 +6,7 @@ use crate::game_state::utils::static_evaluation::gs5x5_static_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use crate::minimax::minimax_cache::MinimaxCache;
 
-#[derive(Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 pub struct GameState5x5Struct {
     pub tile_heights: [u8; 25],
     pub player_a_workers: [u8; 2],
@@ -15,12 +15,6 @@ pub struct GameState5x5Struct {
 }
 
 impl fmt::Display for GameState5x5Struct {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        return self.to_generic_game_state().fmt(f);
-    }
-}
-
-impl fmt::Debug for GameState5x5Struct {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         return self.to_generic_game_state().fmt(f);
     }

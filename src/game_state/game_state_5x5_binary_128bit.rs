@@ -22,7 +22,7 @@ For each tile:
 If a worker is not placed, the position is set to 0x1F (11111 in binary), which is out of bounds for a 5x5 board.
 If only one worker is placed, it must be in the worker 1 position.
  */
-#[derive(Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 pub struct GameState5x5Binary128bit(u128);
 
 impl fmt::Display for GameState5x5Binary128bit {

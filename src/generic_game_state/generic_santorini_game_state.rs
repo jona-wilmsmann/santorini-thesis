@@ -5,13 +5,34 @@ use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 use crate::generic_game_state::GenericGameState;
 
-#[derive(Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Ord, PartialOrd, Debug)]
 pub struct GenericSantoriniGameState<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> {
     pub player_a_turn: bool,
     pub player_a_workers: Option<[u8; WORKERS_PER_PLAYER]>,
     pub player_b_workers: Option<[u8; WORKERS_PER_PLAYER]>,
     pub tile_heights: [[u8; COLUMNS]; ROWS],
 }
+
+impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> PartialEq for GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
+    fn eq(&self, other: &Self) -> bool {
+        let mut self_a_workers = self.player_a_workers.unwrap_or([u8::MAX; WORKERS_PER_PLAYER]);
+        let mut self_b_workers = self.player_b_workers.unwrap_or([u8::MAX; WORKERS_PER_PLAYER]);
+        let mut other_a_workers = other.player_a_workers.unwrap_or([u8::MAX; WORKERS_PER_PLAYER]);
+        let mut other_b_workers = other.player_b_workers.unwrap_or([u8::MAX; WORKERS_PER_PLAYER]);
+
+        self_a_workers.sort_unstable();
+        self_b_workers.sort_unstable();
+        other_a_workers.sort_unstable();
+        other_b_workers.sort_unstable();
+
+        return self.player_a_turn == other.player_a_turn &&
+            self_a_workers == other_a_workers &&
+            self_b_workers == other_b_workers &&
+            self.tile_heights == other.tile_heights;
+    }
+}
+
+impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> Eq for GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {}
 
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> fmt::Display for GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -31,14 +52,8 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> f
     }
 }
 
-impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> fmt::Debug for GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
-    pub fn new(player_a_workers: Option<[u8; WORKERS_PER_PLAYER]>, player_b_workers: Option<[u8; WORKERS_PER_PLAYER]>, tile_heights: [[u8; COLUMNS]; ROWS], player_a_turn: bool) -> Result<GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER>> {
+    pub fn new(mut player_a_workers: Option<[u8; WORKERS_PER_PLAYER]>, mut player_b_workers: Option<[u8; WORKERS_PER_PLAYER]>, tile_heights: [[u8; COLUMNS]; ROWS], player_a_turn: bool) -> Result<GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER>> {
         let mut worker_tiles = Vec::with_capacity(WORKERS_PER_PLAYER * 2);
 
         for workers_option in [player_a_workers, player_b_workers].iter() {

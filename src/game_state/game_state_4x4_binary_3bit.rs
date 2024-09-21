@@ -24,7 +24,7 @@ Bit 63: Player A has won (because they have reached height 3)
 For each tile:
 - Bits 0-2: Height (0-4)
  */
-#[derive(Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 pub struct GameState4x4Binary3Bit(u64);
 
 impl fmt::Display for GameState4x4Binary3Bit {

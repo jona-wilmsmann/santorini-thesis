@@ -76,7 +76,7 @@ impl GameState4x4Binary4Bit {
     const PLAYER_A_MASK: u64 = 0x8888888888888888;
     const PLAYER_B_MASK: u64 = 0x4444444444444444;
 
-    fn get_player_positions(&self) -> (usize, usize) {
+    pub fn get_generic_player_positions(&self) -> (usize, usize) {
         let player_a_bits = self.0 & Self::PLAYER_A_MASK;
         let player_b_bits = self.0 & Self::PLAYER_B_MASK;
         let cleaned_player_a_bit = player_a_bits & !(player_b_bits << 1);
@@ -84,7 +84,11 @@ impl GameState4x4Binary4Bit {
         let player_a_position = cleaned_player_a_bit.trailing_zeros() as usize / 4;
         let player_b_position = cleaned_player_b_bit.trailing_zeros() as usize / 4;
 
-        return (player_a_position, player_b_position);
+        return if self.is_player_a_turn() {
+            (player_a_position, player_b_position)
+        } else {
+            (player_b_position, player_a_position)
+        }
     }
 
     fn has_internal_player_a_won(&self) -> bool {
@@ -273,7 +277,7 @@ impl GameState for GameState4x4Binary4Bit {
             return;
         }
 
-        let player_a_position = (cleaned_player_b_bit.trailing_zeros() / 4) as usize;
+        let player_a_position = (cleaned_player_a_bit.trailing_zeros() / 4) as usize;
         let movement_neighbor_mask = Self::POSITION_TO_NEIGHBOR_MASK[player_a_position];
 
         let player_a_height = (self.0 >> (player_a_position * 4)) & 0x3;
@@ -287,7 +291,7 @@ impl GameState for GameState4x4Binary4Bit {
         const CARRY_MASK: u64 = 0x8888888888888888;
 
         // The highest bit of each tile is 1 before the subtraction, and will become 0 if the remaining tile bits are below the threshold
-        let movement_sub_result = state_with_padded_highest_bit.wrapping_sub(movement_height_threshold_mask);
+        let movement_sub_result = state_with_padded_highest_bit - movement_height_threshold_mask;
 
         let mut valid_movement_neighbors_mask = (!movement_sub_result) & movement_neighbor_mask & CARRY_MASK;
 
@@ -394,7 +398,7 @@ impl SimplifiedState for GameState4x4Binary4Bit {
             return *self;
         }
 
-        let (player_a_position, player_b_position) = self.get_player_positions();
+        let (player_a_position, player_b_position) = self.get_generic_player_positions();
 
         let transposition_type = gs4x4_symmetric_simplified::PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE[player_a_position][player_b_position];
 
@@ -414,7 +418,7 @@ impl SimplifiedState for GameState4x4Binary4Bit {
             for original_pos in 0..16 {
                 let mirrored_pos = gs4x4_symmetric_simplified::POS_TO_DIAGONALLY_MIRRORED_POS[original_pos];
 
-                let original_tile = (self.0 >> (original_pos * 4)) & 0xF;
+                let original_tile = (new_state >> (original_pos * 4)) & 0xF;
                 mirrored_height_information |= original_tile << (mirrored_pos * 4);
             }
             new_state = mirrored_height_information;
@@ -429,7 +433,7 @@ impl SimplifiedState for GameState4x4Binary4Bit {
             return true;
         }
 
-        let (player_a_position, player_b_position) = self.get_player_positions();
+        let (player_a_position, player_b_position) = self.get_generic_player_positions();
 
 
         for combination in gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
