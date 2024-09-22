@@ -12,6 +12,8 @@ pub struct GameState5x5Struct {
     pub player_a_workers: [u8; 2],
     pub player_b_workers: [u8; 2],
     pub player_a_turn: bool,
+    pub has_player_a_won: bool,
+    pub has_player_b_won: bool,
 }
 
 impl fmt::Display for GameState5x5Struct {
@@ -80,11 +82,11 @@ impl GameState for GameState5x5Struct {
     }
 
     fn has_player_a_won(&self) -> bool {
-        return self.player_a_workers.iter().any(|&x| x != GameState5x5Struct::WORKER_NOT_PLACED && self.tile_heights[x as usize] == 3);
+        return self.has_player_a_won;
     }
 
     fn has_player_b_won(&self) -> bool {
-        return self.player_b_workers.iter().any(|&x| x != GameState5x5Struct::WORKER_NOT_PLACED && self.tile_heights[x as usize] == 3);
+        return self.has_player_b_won;
     }
 
     fn from_generic_game_state(generic_game_state: &GenericSantoriniGameState<5, 5, 2>) -> Self {
@@ -108,6 +110,8 @@ impl GameState for GameState5x5Struct {
             player_a_workers,
             player_b_workers,
             player_a_turn: generic_game_state.player_a_turn,
+            has_player_a_won: generic_game_state.has_player_a_won(),
+            has_player_b_won: generic_game_state.has_player_b_won(),
         };
     }
 
@@ -172,6 +176,8 @@ impl GameState for GameState5x5Struct {
                         player_a_workers: if self.player_a_turn { new_workers } else { self.player_a_workers },
                         player_b_workers: if self.player_a_turn { self.player_b_workers } else { new_workers },
                         player_a_turn: !self.player_a_turn,
+                        has_player_a_won: false,
+                        has_player_b_won: false,
                     });
                 }
             }
@@ -227,6 +233,8 @@ impl GameState for GameState5x5Struct {
                             player_a_workers: new_moving_player_workers,
                             player_b_workers: self.player_b_workers,
                             player_a_turn: false,
+                            has_player_a_won: movement_height == 3,
+                            has_player_b_won: false,
                         });
                     } else {
                         possible_next_states.push(Self {
@@ -234,6 +242,8 @@ impl GameState for GameState5x5Struct {
                             player_a_workers: self.player_a_workers,
                             player_b_workers: new_moving_player_workers,
                             player_a_turn: true,
+                            has_player_a_won: false,
+                            has_player_b_won: movement_height == 3,
                         });
                     }
                 }
