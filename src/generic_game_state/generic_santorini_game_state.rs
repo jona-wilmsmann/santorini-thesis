@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::Formatter;
 use anyhow::{bail, ensure, Result};
@@ -5,7 +6,7 @@ use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 use crate::generic_game_state::GenericGameState;
 
-#[derive(Ord, PartialOrd, Debug)]
+#[derive(Debug)]
 pub struct GenericSantoriniGameState<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> {
     pub player_a_turn: bool,
     pub player_a_workers: Option<[u8; WORKERS_PER_PLAYER]>,
@@ -34,6 +35,46 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> P
 
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> Eq for GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {}
 
+impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> PartialOrd for GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let mut self_a_workers = self.player_a_workers.unwrap_or([0; WORKERS_PER_PLAYER]);
+        let mut self_b_workers = self.player_b_workers.unwrap_or([0; WORKERS_PER_PLAYER]);
+        let mut other_a_workers = other.player_a_workers.unwrap_or([0; WORKERS_PER_PLAYER]);
+        let mut other_b_workers = other.player_b_workers.unwrap_or([0; WORKERS_PER_PLAYER]);
+
+        self_a_workers.sort_unstable();
+        self_b_workers.sort_unstable();
+        other_a_workers.sort_unstable();
+        other_b_workers.sort_unstable();
+
+        match self.player_a_turn.cmp(&other.player_a_turn) {
+            Ordering::Equal => {
+                // Then compare player A's workers
+                match self_a_workers.cmp(&other_a_workers) {
+                    Ordering::Equal => {
+                        // Then compare player B's workers
+                        match self_b_workers.cmp(&other_b_workers) {
+                            Ordering::Equal => {
+                                // Finally compare the tile heights
+                                self.tile_heights.partial_cmp(&other.tile_heights)
+                            }
+                            other_order => Some(other_order),
+                        }
+                    }
+                    other_order => Some(other_order),
+                }
+            }
+            other_order => Some(other_order),
+        }
+    }
+}
+
+impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> Ord for GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> fmt::Display for GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "\n---Current Turn: {}---“\n", if self.player_a_turn { "A" } else { "B" })?;
@@ -53,7 +94,7 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> f
 }
 
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
-    pub fn new(mut player_a_workers: Option<[u8; WORKERS_PER_PLAYER]>, mut player_b_workers: Option<[u8; WORKERS_PER_PLAYER]>, tile_heights: [[u8; COLUMNS]; ROWS], player_a_turn: bool) -> Result<GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER>> {
+    pub fn new(player_a_workers: Option<[u8; WORKERS_PER_PLAYER]>, player_b_workers: Option<[u8; WORKERS_PER_PLAYER]>, tile_heights: [[u8; COLUMNS]; ROWS], player_a_turn: bool) -> Result<GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER>> {
         let mut worker_tiles = Vec::with_capacity(WORKERS_PER_PLAYER * 2);
 
         for workers_option in [player_a_workers, player_b_workers].iter() {

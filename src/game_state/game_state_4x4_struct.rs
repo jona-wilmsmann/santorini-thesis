@@ -1,9 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
 use crate::game_state::{GameState, MinimaxReady};
-use crate::game_state::game_state_5x5_struct::GameState5x5Struct;
-
-use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use crate::minimax::minimax_cache::MinimaxCache;

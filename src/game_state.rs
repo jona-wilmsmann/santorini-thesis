@@ -47,6 +47,7 @@ pub mod game_state_4x4_struct;
 pub mod game_state_5x5_binary_128bit;
 pub mod game_state_5x5_struct;
 pub mod game_state_5x5_binary_composite;
+pub mod game_state_5x5_5bit;
 pub mod utils;
 
 mod game_state_tests;

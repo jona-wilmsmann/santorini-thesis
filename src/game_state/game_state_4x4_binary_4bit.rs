@@ -100,12 +100,6 @@ impl GameState4x4Binary4Bit {
         let cleaned_player_a_bit = player_a_bits & !(player_b_bits << 1);
         let player_a_position = cleaned_player_a_bit.trailing_zeros() / 4;
         return ((self.0 >> (player_a_position * 4)) & 3) == 3;
-
-        // The player_a_bits might include the 1100 special case for height 4, but in that case, the relevant height bits will be 0
-        // Therefore, the player_a_bits_heights only include the actual height bits for player A
-        let player_a_bits = self.0 & Self::PLAYER_A_MASK;
-        let player_a_bits_heights = self.0 & (player_a_bits >> 2 | player_a_bits >> 3);
-        return player_a_bits_heights.count_ones() == 2;
     }
 
     fn has_internal_player_b_won(&self) -> bool {
@@ -117,10 +111,6 @@ impl GameState4x4Binary4Bit {
         let cleaned_player_b_bit = player_b_bits & !(player_a_bits << 1);
         let player_b_position = cleaned_player_b_bit.trailing_zeros() / 4;
         return ((self.0 >> (player_b_position * 4)) & 3) == 3;
-
-        let player_b_bits = self.0 & Self::PLAYER_B_MASK;
-        let player_b_bits_heights = self.0 & (player_b_bits >> 1 | player_b_bits >> 2);
-        return player_b_bits_heights.count_ones() == 2;
     }
 }
 
@@ -261,7 +251,7 @@ impl GameState for GameState4x4Binary4Bit {
         let cleaned_player_a_bit = player_a_bits & !(player_b_bits << 1);
         let cleaned_player_b_bit = player_b_bits & !(player_a_bits >> 1);
 
-        let mut flipped_base_state = (self.0 & !cleaned_player_a_bit) + cleaned_player_b_bit;
+        let flipped_base_state = (self.0 & !cleaned_player_a_bit) + cleaned_player_b_bit;
 
         if player_a_bits == 0 {
             // No worker placed
@@ -306,7 +296,7 @@ impl GameState for GameState4x4Binary4Bit {
 
             let build_neighbor_mask = Self::POSITION_TO_NEIGHBOR_MASK[movement_position];
             let build_height_threshold_mask = 0x4444444444444444;
-            let build_sub_result = state_with_padded_highest_bit.wrapping_sub(build_height_threshold_mask);
+            let build_sub_result = state_with_padded_highest_bit - build_height_threshold_mask;
             let mut valid_build_neighbors_mask = !build_sub_result & build_neighbor_mask & CARRY_MASK;
 
             let mut seen_build_positions = 0;
