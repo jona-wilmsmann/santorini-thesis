@@ -146,10 +146,9 @@ impl GameState for GameState5x5Struct {
 
 
         let moving_player_workers = if self.player_a_turn { self.player_a_workers } else { self.player_b_workers };
-        let other_player_workers = if self.player_a_turn { self.player_b_workers } else { self.player_a_workers };
 
         let mut tile_has_worker = [false; 25];
-        for worker_tile in moving_player_workers.iter().chain(other_player_workers.iter()) {
+        for worker_tile in self.player_a_workers.iter().chain(self.player_b_workers.iter()) {
             if *worker_tile != Self::WORKER_NOT_PLACED {
                 tile_has_worker[*worker_tile as usize] = true;
             }
@@ -203,8 +202,6 @@ impl GameState for GameState5x5Struct {
                     continue;
                 }
 
-                let mut new_moving_player_workers = moving_player_workers;
-                new_moving_player_workers[worker_index] = movement_tile as u8;
 
                 for build_tile in Self::TILE_TO_NEIGHBORS[movement_tile] {
                     if build_tile == Self::NO_NEIGHBOR {
@@ -221,15 +218,28 @@ impl GameState for GameState5x5Struct {
                     let mut new_position_heights = self.tile_heights;
                     new_position_heights[build_tile] += 1;
 
-                    possible_next_states.push(Self {
-                        tile_heights: new_position_heights,
-                        player_a_workers: if self.player_a_turn { new_moving_player_workers } else { self.player_a_workers },
-                        player_b_workers: if self.player_a_turn { self.player_b_workers } else { new_moving_player_workers },
-                        player_a_turn: !self.player_a_turn,
-                    });
+                    let mut new_moving_player_workers = moving_player_workers;
+                    new_moving_player_workers[worker_index] = movement_tile as u8;
+
+                    if self.player_a_turn {
+                        possible_next_states.push(Self {
+                            tile_heights: new_position_heights,
+                            player_a_workers: new_moving_player_workers,
+                            player_b_workers: self.player_b_workers,
+                            player_a_turn: false,
+                        });
+                    } else {
+                        possible_next_states.push(Self {
+                            tile_heights: new_position_heights,
+                            player_a_workers: self.player_a_workers,
+                            player_b_workers: new_moving_player_workers,
+                            player_a_turn: true,
+                        });
+                    }
                 }
             }
         }
+
     }
 }
 
