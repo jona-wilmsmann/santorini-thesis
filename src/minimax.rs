@@ -1,42 +1,58 @@
 pub mod minimax_cache;
 
-use std::time::Duration;
-use num_format::{Locale, ToFormattedString};
 use crate::game_state::{GameState, SimplifiedState, MinimaxReady};
 use crate::minimax::minimax_cache::{Bounds, MinimaxCache};
 
-pub fn readable_minmax_value(value: f32) -> String {
-    // If the value is close to MAX or MIN
-    return if value > 1_000_000.0 {
-        let difference = f32::MAX.to_bits() - value.to_bits();
-        format!("#+{}", difference)
-    } else if value < -1_000_000.0 {
-        let difference = f32::MIN.to_bits() - value.to_bits();
-        format!("#-{}", difference)
+
+fn simple_minimax_internal<GS: GameState + MinimaxReady>(game_state: &GS, maximizing_player: bool, depth: usize, reused_children_vec: &mut Vec<GS>, evaluated_states: &mut usize) -> f32 {
+    *evaluated_states += 1;
+
+    if game_state.has_player_a_won() {
+        return f32::MAX;
+    } else if game_state.has_player_b_won() {
+        return f32::MIN;
+    }
+
+    if depth == 0 {
+        return 0.0;
+    }
+
+    game_state.get_children_states_reuse_vec(reused_children_vec);
+
+    let mut reusable_vec_for_children = Vec::with_capacity(32);
+    if maximizing_player {
+        let mut max_evaluation = f32::NEG_INFINITY;
+        for child in reused_children_vec {
+            let evaluation = simple_minimax_internal(child, false, depth - 1, &mut reusable_vec_for_children, evaluated_states);
+            if evaluation > max_evaluation {
+                max_evaluation = evaluation;
+            }
+        }
+        return max_evaluation;
     } else {
-        value.to_string()
-    };
+        let mut min_evaluation = f32::INFINITY;
+        for child in reused_children_vec {
+            let evaluation = simple_minimax_internal(child, true, depth - 1, &mut reusable_vec_for_children, evaluated_states);
+            if evaluation < min_evaluation {
+                min_evaluation = evaluation;
+            }
+        }
+        return min_evaluation;
+    }
 }
 
-// Allows for flexibly adding caching if needed
-fn get_static_evaluation<GS: GameState + MinimaxReady>(game_state: &GS, _cache: &mut MinimaxCache<GS>) -> f32 {
-    return game_state.get_static_evaluation();
-
-    /*
-    if let Some(cached_value) = cache.valuations[0].get(game_state) {
-        return *cached_value;
-    }
-    let static_evaluation = game_state.static_evaluation();
-    cache.valuations[0].insert(game_state.clone(), static_evaluation);
-    return static_evaluation;
-    */
+pub fn simple_minimax<GS: GameState + MinimaxReady>(game_state: &GS, depth: usize) -> (f32, usize) {
+    let mut evaluated_states = 0;
+    let mut reused_children_vec = Vec::with_capacity(32);
+    let result = simple_minimax_internal(game_state, game_state.is_player_a_turn(), depth, &mut reused_children_vec, &mut evaluated_states);
+    return (result, evaluated_states);
 }
 
 pub fn minimax<GS: GameState + MinimaxReady>(game_state: &GS, depth: usize, mut alpha: f32, mut beta: f32, cache: &mut MinimaxCache<GS>) -> f32 {
     cache.evaluated_states += 1;
 
     if depth == 0 {
-        return get_static_evaluation(game_state, cache);
+        return game_state.get_static_evaluation();
     }
 
     if game_state.has_player_a_won() {
@@ -162,90 +178,3 @@ pub fn minimax<GS: GameState + MinimaxReady>(game_state: &GS, depth: usize, mut 
         return min_evaluation;
     }
 }
-
-
-pub fn increasing_depth_minimax<GS: GameState + MinimaxReady + SimplifiedState>(game_state: &GS, max_depth: usize, cutoff_time: Duration, cache: &mut MinimaxCache<GS>) -> f32 {
-    let start = std::time::Instant::now();
-    let mut value = 0.0;
-    let mut reached_depth = 0;
-
-    let mut last_evaluated_states = 0;
-    let mut last_pruned_states = 0;
-    let mut last_time = start;
-
-    for depth in 1..=max_depth {
-        let duration = start.elapsed();
-        if duration > cutoff_time {
-            break;
-        }
-        value = minimax(game_state, depth, f32::MIN, f32::MAX, cache);
-        reached_depth = depth;
-        println!("Depth: {}, value: {}, Evaluated states: {}, Pruned states: {}, Took: {:?}", depth, readable_minmax_value(value), (cache.evaluated_states - last_evaluated_states).to_formatted_string(&Locale::en), (cache.pruned_states - last_pruned_states).to_formatted_string(&Locale::en), last_time.elapsed());
-        last_evaluated_states = cache.evaluated_states;
-        last_pruned_states = cache.pruned_states;
-        last_time = std::time::Instant::now();
-    }
-    return value;
-}
-
-
-// This function is used to prioritize moves that reach a good game state faster, or delay a bad game state
-fn move_f32_closer_to_zero(value: f32) -> f32 {
-    if value == 0.0 {
-        return value;
-    }
-    let mut int_value = value.to_bits();
-    int_value -= 1;
-    return f32::from_bits(int_value);
-}
-
-/*
-TODO: Update this when minimax is stable
-pub fn minimax_with_moves<GS: GameState + MinimaxReady + SimplifiedState>(game_state: &GS, depth: usize, mut alpha: f32, beta: f32, cache: &mut MinimaxCache<GS>) -> (f32, Vec<GS>) {
-    let mut game_state_path = vec![game_state.clone()];
-    cache.evaluated_states += 1;
-
-    if depth == 0 {
-        return (get_static_evaluation(game_state, cache), game_state_path);
-    }
-
-    if game_state.has_player_a_won() {
-        return (f32::MAX, game_state_path);
-    } else if game_state.has_player_b_won() {
-        return (f32::MIN, game_state_path);
-    }
-
-    let mut children_states = game_state.get_children_states();
-    sort_children_states(&mut children_states, depth, cache);
-
-    if children_states.len() == 0 {
-        return (f32::MIN, game_state_path);
-    }
-
-    let mut max_evaluation = f32::NEG_INFINITY;
-    let mut best_children_path = vec![];
-    let mut evaluated_children = 0;
-    for child in &children_states {
-        evaluated_children += 1;
-        let flipped_state = child.get_flipped_state();
-        let result = minimax_with_moves(&flipped_state, depth - 1, -beta, -alpha, cache);
-        let evaluation = -result.0;
-        if evaluation > max_evaluation {
-            best_children_path = result.1;
-            max_evaluation = evaluation;
-        }
-        if evaluation > alpha {
-            alpha = evaluation;
-        }
-        if alpha >= beta {
-            break;
-        }
-    }
-    cache.pruned_states += children_states.len() - evaluated_children;
-
-    game_state_path.extend(best_children_path);
-
-    return (move_f32_closer_to_zero(max_evaluation), game_state_path);
-}
-
- */

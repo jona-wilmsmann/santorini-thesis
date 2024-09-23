@@ -5,7 +5,6 @@ use tokio::fs;
 use anyhow::Result;
 use crate::game_state::{GameState, SimplifiedState, MinimaxReady};
 use crate::measurements::parallelize_measurements::parallelize_measurements;
-use crate::minimax::readable_minmax_value;
 
 pub async fn create_csv_report<
     GS: GameState + MinimaxReady + SimplifiedState + 'static
@@ -27,7 +26,7 @@ pub async fn create_csv_report<
             format!("{:?}", measurement.game_state.raw_value()),
             format!("{}", measurement.game_state_block_amount),
             format!("{}", measurement.depth),
-            format!("{}", readable_minmax_value(measurement.result)),
+            format!("{}", measurement.result),
             format!("{}", measurement.calculation_time.as_secs_f64()),
             format!("{}", measurement.evaluated_states),
             format!("{}", measurement.pruned_states),

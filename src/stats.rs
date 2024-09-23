@@ -70,3 +70,5 @@ pub trait StatGenerator {
 
 pub mod game_states_by_block_count;
 pub mod branching_factor_by_block_count;
+pub mod benchmark_minimax_simple;
+pub mod formatters;
