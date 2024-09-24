@@ -9,53 +9,53 @@ use plotters::style::text_anchor::{HPos, Pos, VPos};
 use crate::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use crate::game_state::game_state_4x4_binary_4bit::GameState4x4Binary4Bit;
 use crate::game_state::game_state_4x4_struct::GameState4x4Struct;
-use crate::game_state::{GameState, MinimaxReady};
+use crate::game_state::GameState;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use crate::generic_game_state::GenericGameState;
 use crate::minimax::simple_minimax;
 use crate::stats::formatters::{ns_formatter, value_formatter};
 use crate::stats::StatGenerator;
 
-pub struct BenchmarkMinimaxSimple<GS: GameState + MinimaxReady> {
-    game_name: String,
-    game_state_name: String,
-    game_state_short_name: String,
-    cpu_name: String,
-    max_depth: usize,
-    initial_game_state: GS,
+pub struct BenchmarkMinimaxSimple<GS: GameState> {
+    pub(crate) game_name: String,
+    pub(crate) game_state_name: String,
+    pub(crate) game_state_short_name: String,
+    pub(crate) cpu_name: String,
+    pub(crate) max_depth_simple: usize,
+    pub(crate) initial_game_state: GS,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MinimaxMeasurement {
-    depth: usize,
-    computation_time: Duration,
-    evaluated_states: usize,
-    average_branching_factor: f32,
-    result: f32,
+    pub(crate) depth: usize,
+    pub(crate) computation_time: Duration,
+    pub(crate) evaluated_states: usize,
+    pub(crate) average_branching_factor: f32,
+    pub(crate) result: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BenchmarkGameStatesBasicData {
-    initial_game_state: String,
-    measurements: Vec<MinimaxMeasurement>,
+    pub(crate) initial_game_state: String,
+    pub(crate) measurements_simple: Vec<MinimaxMeasurement>,
 }
 
 
-impl<GS: GameState + MinimaxReady> BenchmarkMinimaxSimple<GS> {
+impl<GS: GameState> BenchmarkMinimaxSimple<GS> {
     pub fn new (game_name: String, game_state_name: String, game_state_short_name: String, cpu_name: String, max_depth: usize, initial_game_state: GS) -> Self {
         return BenchmarkMinimaxSimple {
             game_name,
             game_state_name,
             game_state_short_name,
             cpu_name,
-            max_depth,
+            max_depth_simple: max_depth,
             initial_game_state,
         };
     }
 }
 
 
-impl<GS: GameState + MinimaxReady> StatGenerator for BenchmarkMinimaxSimple<GS> {
+impl<GS: GameState> StatGenerator for BenchmarkMinimaxSimple<GS> {
     type DataType = BenchmarkGameStatesBasicData;
 
     fn get_stat_name(&self) -> String {
@@ -69,7 +69,7 @@ impl<GS: GameState + MinimaxReady> StatGenerator for BenchmarkMinimaxSimple<GS> 
 
         let mut measurements = Vec::new();
 
-        for depth in 0..=self.max_depth {
+        for depth in 0..=self.max_depth_simple {
             let start = Instant::now();
             let (result, evaluated_states) = simple_minimax(&self.initial_game_state, depth);
             let computation_time = start.elapsed();
@@ -85,18 +85,18 @@ impl<GS: GameState + MinimaxReady> StatGenerator for BenchmarkMinimaxSimple<GS> 
 
         return Ok(BenchmarkGameStatesBasicData {
             initial_game_state: self.initial_game_state.to_string(),
-            measurements,
+            measurements_simple: measurements,
         });
     }
 
     fn generate_graph(&self, data: Self::DataType, data_time: String, output_folder_path: &str) -> anyhow::Result<()> {
-        let max_measurement_time_ns = data.measurements.iter().map(|m| m.computation_time).max().unwrap().as_nanos() as usize;
-        let max_evaluated_states = data.measurements.iter().map(|m| m.evaluated_states).max().unwrap();
+        let max_measurement_time_ns = data.measurements_simple.iter().map(|m| m.computation_time).max().unwrap().as_nanos() as usize;
+        let max_evaluated_states = data.measurements_simple.iter().map(|m| m.evaluated_states).max().unwrap();
 
         let height = 1000;
         let width = 500;
 
-        let graph_path = format!("{}/{}.svg", output_folder_path, self.get_stat_name());
+        let graph_path = format!("{}/{}.svg", output_folder_path, data_time);
         let root = SVGBackend::new(&graph_path, (height, width)).into_drawing_area();
 
         root.fill(&WHITE)?;
@@ -111,7 +111,7 @@ impl<GS: GameState + MinimaxReady> StatGenerator for BenchmarkMinimaxSimple<GS> 
         let evaluated_states_range = 0..rounded_upper_bound;
         let log_evaluated_states_range = evaluated_states_range.log_scale();
 
-        let x_spec = (0..self.max_depth).into_segmented();
+        let x_spec = (0..self.max_depth_simple).into_segmented();
 
 
         // Line chart showing computation time, bar chart showing evaluated states
@@ -143,13 +143,13 @@ impl<GS: GameState + MinimaxReady> StatGenerator for BenchmarkMinimaxSimple<GS> 
 
         // draw line series
         chart.draw_series(LineSeries::new(
-            data.measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.computation_time.as_nanos() as usize)),
+            data.measurements_simple.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.computation_time.as_nanos() as usize)),
             &BLUE,
         ))?;
 
         // add value labels to each point (only show measurement time formatted using ns_formatter)
         chart.draw_series(PointSeries::of_element(
-            data.measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.computation_time.as_nanos() as usize)),
+            data.measurements_simple.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.computation_time.as_nanos() as usize)),
             5,
             &BLUE,
             &|c, s, st| {
@@ -164,14 +164,14 @@ impl<GS: GameState + MinimaxReady> StatGenerator for BenchmarkMinimaxSimple<GS> 
             Histogram::vertical(&chart)
                 .style(BLUE.mix(0.5).filled())
                 .margin(1)
-                .data(data.measurements.iter().map(|m| (m.depth, m.evaluated_states))),
+                .data(data.measurements_simple.iter().map(|m| (m.depth, m.evaluated_states))),
         )?;
 
 
 
         // add value labels to each point (only show measurement time formatted using ns_formatter)
         chart.draw_secondary_series(PointSeries::of_element(
-            data.measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.evaluated_states)),
+            data.measurements_simple.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.evaluated_states)),
             5,
             &BLUE,
             &|c, s, st| {

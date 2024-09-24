@@ -1,25 +1,17 @@
 // Necessary for precomputing values for static evaluation
 #![feature(const_fn_floating_point_arithmetic)]
 
-
-use std::time::{Duration, Instant};
-use num_format::{Locale, ToFormattedString};
-use santorini_minimax::game_state::{ContinuousBlockId, GameState, SimplifiedState, MinimaxReady};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
-use santorini_minimax::game_state::game_state_5x5_binary_128bit::GameState5x5Binary128bit;
-use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
-use santorini_minimax::generic_game_state::GenericGameState;
-use santorini_minimax::minimax::minimax_cache::MinimaxCache;
-use santorini_minimax::minimax::{minimax, readable_minmax_value};
-use santorini_minimax::play_game::play_game;
-use santorini_minimax::precompute_state_winner::presolve_state_winner;
-use santorini_minimax::stats::game_states_by_block_count::GameStatesByBlockCount;
-use santorini_minimax::stats::StatGenerator;
-use santorini_minimax::strategy::console_input_strategy::ConsoleInputStrategy;
-use santorini_minimax::strategy::random_strategy::RandomStrategy;
+use santorini_minimax::stats::{StatGenerator};
 use anyhow::Result;
-use santorini_minimax::stats::branching_factor_by_block_count::BranchingFactorByBlockCount;
+use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
+use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
+use santorini_minimax::game_state::GameState;
+use santorini_minimax::minimax::minimax;
+use santorini_minimax::minimax::minimax_cache::MinimaxCache;
+use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
+use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
 
 /*
 fn measure_minimax_and_log_moves<GS: GameState + MinimaxReady + SimplifiedState>(game_state: &GS, depth: usize) {
@@ -53,6 +45,78 @@ fn store_game_state_image<const ROWS: usize, const COLUMNS: usize, const WORKERS
 
 #[tokio::main]
 async fn main() {
+    let cpu_name = "Intel Core i9-13900K".to_string();
+
+    /*
+    type GS4x4 = GameState4x4Binary3Bit;
+    type GGS4x4 = <GameState4x4Binary3Bit as GameState>::GenericGameState;
+    let generic_game_state_4x4 = GGS4x4::new(
+        Some([5]),
+        Some([14]),
+        [
+            [0, 0, 1, 0],
+            [0, 2, 0, 0],
+            [0, 1, 1, 0],
+            [1, 4, 2, 0]
+        ],
+        true,
+    ).unwrap();
+
+    let benchmark_minimax_simple_4x4 = BenchmarkMinimaxSimple::new(
+        "4x4 Santorini".to_string(),
+        "4x4 Binary 3bit".to_string(),
+        "4x4_binary_3bit".to_string(),
+        cpu_name.clone(),
+        6,
+        GS4x4::from_generic_game_state(&generic_game_state_4x4)
+    );
+
+    //benchmark_minimax_simple_4x4.gather_and_store_data().unwrap();
+    benchmark_minimax_simple_4x4.generate_graph_from_most_recent_data().unwrap();
+
+     */
+
+    type GS5x5 = GameState5x5BinaryComposite;
+    type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
+    let generic_game_state_5x5 = GGS5x5::new(
+        Some([11, 13]),
+        Some([6, 8]),
+        [
+            [0, 0, 1, 0, 0],
+            [0, 2, 1, 1, 0],
+            [1, 2, 2, 0, 0],
+            [0, 1, 4, 0, 1],
+            [0, 0, 1, 0, 1]
+        ],
+        true,
+    ).unwrap();
+
+    let benchmark_minimax_simple_5x5 = BenchmarkMinimaxSimple::new(
+        "5x5 Santorini".to_string(),
+        "5x5 Binary Composite".to_string(),
+        "5x5_binary_composite".to_string(),
+        cpu_name.clone(),
+        6,
+        GS5x5::from_generic_game_state(&generic_game_state_5x5)
+    );
+    //benchmark_minimax_simple_5x5.gather_and_store_data().unwrap();
+    //benchmark_minimax_simple_5x5.generate_graph_from_most_recent_data().unwrap();
+
+    let benchmark_minimax_alpha_beta_5x5 = BenchmarkMinimaxAlphaBeta::new(
+        "5x5 Santorini".to_string(),
+        "5x5 Binary Composite".to_string(),
+        "5x5_binary_composite".to_string(),
+        cpu_name,
+        9,
+        GS5x5::from_generic_game_state(&generic_game_state_5x5),
+        benchmark_minimax_simple_5x5
+    );
+    //benchmark_minimax_alpha_beta_5x5.gather_and_store_data().unwrap();
+    benchmark_minimax_alpha_beta_5x5.generate_graph_from_most_recent_data().unwrap();
+
+
+
+    /*
     type GS5x5 = GameState5x5Struct;
     type GS4x4 = GameState4x4Binary3Bit;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
@@ -69,6 +133,7 @@ async fn main() {
     //game_states_stat.gather_and_store_data().unwrap();
     game_states_stat.generate_graph_from_most_recent_data().unwrap();
 
+     */
     /*
     type GS4x4 = GameState4x4Binary3Bit;
 
