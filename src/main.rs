@@ -5,13 +5,16 @@ use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binar
 use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use santorini_minimax::stats::{StatGenerator};
 use anyhow::Result;
+use rand::SeedableRng;
 use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
-use santorini_minimax::game_state::GameState;
-use santorini_minimax::minimax::minimax;
+use santorini_minimax::game_state::{GameState, MinimaxReady};
+use santorini_minimax::generic_game_state::GenericGameState;
+use santorini_minimax::minimax::{alpha_beta_sorted_minimax, minimax};
 use santorini_minimax::minimax::minimax_cache::MinimaxCache;
 use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
+use santorini_minimax::stats::benchmark_minimax_sorted::BenchmarkMinimaxSorted;
 
 /*
 fn measure_minimax_and_log_moves<GS: GameState + MinimaxReady + SimplifiedState>(game_state: &GS, depth: usize) {
@@ -41,6 +44,37 @@ fn store_game_state_image<const ROWS: usize, const COLUMNS: usize, const WORKERS
     let image_path = format!("{}/{}.svg", folder_path, name);
     game_state.draw_image(image_path.as_str())?;
     return Ok(());
+}
+
+async fn average_branching_factor<GS: GameState + MinimaxReady + 'static>(number_random_states: usize, block_count: usize, depth: usize) -> Result<f32> {
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+    let random_states: Vec<GS> = (0..number_random_states)
+        .map(|_| GS::from_generic_game_state(&GS::GenericGameState::generate_random_state_with_blocks_rng(&mut rng, block_count)))
+        .collect();
+
+
+    let mut tasks = Vec::with_capacity(number_random_states);
+
+    for (i, state) in random_states.iter().enumerate() {
+        let state_copy = state.clone();
+        tasks.push(tokio::spawn(async move {
+            let result = alpha_beta_sorted_minimax(&state_copy, depth);
+            println!("State {}, evaluated states: {}", i, result.1);
+            return result.1;
+        }));
+    }
+
+    let mut evaluated_states = Vec::with_capacity(number_random_states);
+    for task in tasks {
+        evaluated_states.push(task.await?);
+    }
+
+    let evaluated_states_sum: usize = evaluated_states.iter().sum();
+    let average_evaluated_states = evaluated_states_sum as f32 / number_random_states as f32;
+    let average_branching_factor = average_evaluated_states.powf(1.0 / (depth as f32));
+    println!("Average branching factor: {}", average_branching_factor);
+
+    return Ok(average_branching_factor);
 }
 
 #[tokio::main]
@@ -106,15 +140,28 @@ async fn main() {
         "5x5 Santorini".to_string(),
         "5x5 Binary Composite".to_string(),
         "5x5_binary_composite".to_string(),
-        cpu_name,
+        cpu_name.clone(),
         9,
         GS5x5::from_generic_game_state(&generic_game_state_5x5),
         benchmark_minimax_simple_5x5
     );
     //benchmark_minimax_alpha_beta_5x5.gather_and_store_data().unwrap();
-    benchmark_minimax_alpha_beta_5x5.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_alpha_beta_5x5.generate_graph_from_most_recent_data().unwrap();
 
 
+    let benchmark_minimax_sorted_5x5 = BenchmarkMinimaxSorted::new(
+        "5x5 Santorini".to_string(),
+        "5x5 Binary Composite".to_string(),
+        "5x5_binary_composite".to_string(),
+        cpu_name,
+        14,
+        GS5x5::from_generic_game_state(&generic_game_state_5x5),
+        benchmark_minimax_alpha_beta_5x5
+    );
+    //benchmark_minimax_sorted_5x5.gather_and_store_data().unwrap();
+    //benchmark_minimax_sorted_5x5.generate_graph_from_most_recent_data().unwrap();
+
+    let _ = average_branching_factor::<GS5x5>(1000, 20, 6).await;
 
     /*
     type GS5x5 = GameState5x5Struct;

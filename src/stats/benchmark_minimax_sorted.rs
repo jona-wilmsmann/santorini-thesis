@@ -1,55 +1,57 @@
 use std::cmp::max;
-use std::time::{Instant};
+use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use plotters::prelude::*;
+use plotters::prelude::full_palette::{BROWN, DEEPPURPLE, PURPLE};
 use plotters::style::text_anchor::{HPos, Pos, VPos};
-use crate::game_state::GameState;
-use crate::minimax::{alpha_beta_minimax};
-use crate::stats::benchmark_minimax_simple::{BenchmarkMinimaxSimple, MinimaxMeasurement};
+use crate::game_state::{GameState, MinimaxReady};
+use crate::minimax::alpha_beta_sorted_minimax;
+use crate::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
+use crate::stats::benchmark_minimax_simple::MinimaxMeasurement;
 use crate::stats::formatters::{ns_formatter, value_formatter};
 use crate::stats::StatGenerator;
 
-pub struct BenchmarkMinimaxAlphaBeta<GS: GameState> {
+pub struct BenchmarkMinimaxSorted<GS: GameState + MinimaxReady> {
     game_name: String,
     game_state_name: String,
     game_state_short_name: String,
     cpu_name: String,
-    pub(crate) max_depth_alpha_beta: usize,
-    pub(crate) initial_game_state: GS,
-    simple_benchmark: BenchmarkMinimaxSimple<GS>,
+    max_depth_sorted: usize,
+    initial_game_state: GS,
+    alpha_beta_benchmark: BenchmarkMinimaxAlphaBeta<GS>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct BenchmarkMinimaxAlphaBetaData {
+pub struct BenchmarkGameStatesBasicData {
     initial_game_state: String,
-    simple_measurements: Vec<MinimaxMeasurement>,
-    pub(crate) alpha_beta_measurements: Vec<MinimaxMeasurement>,
+    alpha_beta_measurements: Vec<MinimaxMeasurement>,
+    sorted_measurements: Vec<MinimaxMeasurement>,
 }
 
 
-impl<GS: GameState> BenchmarkMinimaxAlphaBeta<GS> {
-    pub fn new (game_name: String, game_state_name: String, game_state_short_name: String, cpu_name: String, max_depth_alpha_beta: usize, initial_game_state: GS, simple_benchmark: BenchmarkMinimaxSimple<GS>) -> Self {
-        if simple_benchmark.initial_game_state != initial_game_state {
+impl<GS: GameState + MinimaxReady> BenchmarkMinimaxSorted<GS> {
+    pub fn new (game_name: String, game_state_name: String, game_state_short_name: String, cpu_name: String, max_depth_sorted: usize, initial_game_state: GS, alpha_beta_benchmark: BenchmarkMinimaxAlphaBeta<GS>) -> Self {
+        if alpha_beta_benchmark.initial_game_state != initial_game_state {
             panic!("Initial game state for simple benchmark and alpha-beta benchmark must be the same");
         }
-        return BenchmarkMinimaxAlphaBeta {
+        return BenchmarkMinimaxSorted {
             game_name,
             game_state_name,
             game_state_short_name,
             cpu_name,
-            max_depth_alpha_beta,
+            max_depth_sorted,
             initial_game_state,
-            simple_benchmark,
+            alpha_beta_benchmark,
         };
     }
 }
 
 
-impl<GS: GameState> StatGenerator for BenchmarkMinimaxAlphaBeta<GS> {
-    type DataType = BenchmarkMinimaxAlphaBetaData;
+impl<GS: GameState + MinimaxReady> StatGenerator for BenchmarkMinimaxSorted<GS> {
+    type DataType = BenchmarkGameStatesBasicData;
 
     fn get_stat_name(&self) -> String {
-        return format!("benchmark_minimax_alpha_beta_{}", self.game_state_short_name);
+        return format!("benchmark_minimax_sorted_{}", self.game_state_short_name);
     }
 
     fn gather_data(&self) -> anyhow::Result<Self::DataType> {
@@ -59,9 +61,9 @@ impl<GS: GameState> StatGenerator for BenchmarkMinimaxAlphaBeta<GS> {
 
         let mut measurements_alpha_beta = Vec::new();
 
-        for depth in 0..=self.max_depth_alpha_beta {
+        for depth in 0..=self.max_depth_sorted {
             let start = Instant::now();
-            let (result, evaluated_states) = alpha_beta_minimax(&self.initial_game_state, depth);
+            let (result, evaluated_states) = alpha_beta_sorted_minimax(&self.initial_game_state, depth);
             let computation_time = start.elapsed();
             let average_branching_factor = (evaluated_states as f32).powf(1.0 / (depth as f32));
             measurements_alpha_beta.push(MinimaxMeasurement {
@@ -73,13 +75,13 @@ impl<GS: GameState> StatGenerator for BenchmarkMinimaxAlphaBeta<GS> {
             });
         }
 
-        let simple_data_file = self.simple_benchmark.get_most_recent_data_file()?;
-        let simple_data = self.simple_benchmark.get_data(&simple_data_file)?;
+        let alpha_beta_data_file = self.alpha_beta_benchmark.get_most_recent_data_file()?;
+        let alpha_beta_data = self.alpha_beta_benchmark.get_data(&alpha_beta_data_file)?;
 
-        return Ok(BenchmarkMinimaxAlphaBetaData {
+        return Ok(BenchmarkGameStatesBasicData {
             initial_game_state: self.initial_game_state.to_string(),
-            simple_measurements: simple_data.measurements_simple,
-            alpha_beta_measurements: measurements_alpha_beta,
+            alpha_beta_measurements: alpha_beta_data.alpha_beta_measurements,
+            sorted_measurements: measurements_alpha_beta,
         });
     }
 
@@ -93,12 +95,12 @@ impl<GS: GameState> StatGenerator for BenchmarkMinimaxAlphaBeta<GS> {
         root.fill(&WHITE)?;
 
 
-        let simple_max_measurement_time_ns = data.simple_measurements.iter().map(|m| m.computation_time).max().unwrap().as_nanos() as usize;
-        let simple_max_evaluated_states = data.simple_measurements.iter().map(|m| m.evaluated_states).max().unwrap();
+        let simple_max_measurement_time_ns = data.alpha_beta_measurements.iter().map(|m| m.computation_time).max().unwrap().as_nanos() as usize;
+        let simple_max_evaluated_states = data.alpha_beta_measurements.iter().map(|m| m.evaluated_states).max().unwrap();
         // let alpha_beta_max_measurement_time_ns = data.alpha_beta_measurements.iter().map(|m| m.computation_time).max().unwrap().as_nanos() as usize;
         // let alpha_beta_max_evaluated_states = data.alpha_beta_measurements.iter().map(|m| m.evaluated_states).max().unwrap();
 
-        let max_depth = max(self.simple_benchmark.max_depth_simple, self.max_depth_alpha_beta);
+        let max_depth = max(self.alpha_beta_benchmark.max_depth_alpha_beta, self.max_depth_sorted);
 
         let max_upper_bound = max(simple_max_measurement_time_ns, simple_max_evaluated_states);
         let rounded_upper_bound = 10usize.pow((max_upper_bound as f32).log10().ceil() as u32);
@@ -114,7 +116,7 @@ impl<GS: GameState> StatGenerator for BenchmarkMinimaxAlphaBeta<GS> {
 
         // Line chart showing computation time, bar chart showing evaluated states
         let mut chart = ChartBuilder::on(&root)
-            .caption(format!("Alpha Beta Minimax Benchmark for {}", self.game_name), ("sans-serif", 30).into_font())
+            .caption(format!("Sorted Alpha Beta Minimax Benchmark for {}", self.game_name), ("sans-serif", 30).into_font())
             .margin(10)
             .set_label_area_size(LabelAreaPosition::Left, 70)
             .set_label_area_size(LabelAreaPosition::Right, 70)
@@ -139,9 +141,9 @@ impl<GS: GameState> StatGenerator for BenchmarkMinimaxAlphaBeta<GS> {
             .label_style(("sans-serif", 15).into_font())
             .draw()?;
 
-        for (measurements, color, point_offset, label) in [
-            (data.simple_measurements, BLUE, (-15,-15), "Simple Minimax"),
-            (data.alpha_beta_measurements, RED, (-15,8), "Alpha-Beta Minimax")
+        for (measurements, color, point_offset, label, draw_points) in [
+            (data.alpha_beta_measurements, RED, (-15, -15), "Alpha-Beta Minimax", false),
+            (data.sorted_measurements, DEEPPURPLE, (-15, 8), "Sorted Alpha-Beta Minimax", true)
         ].into_iter() {
             // draw line series
             chart.draw_series(LineSeries::new(
@@ -152,16 +154,28 @@ impl<GS: GameState> StatGenerator for BenchmarkMinimaxAlphaBeta<GS> {
                 .legend(move |(x, y)| PathElement::new(vec![(x, y), (x - 15, y)], &color));
 
             // add value labels to each point (only show measurement time formatted using ns_formatter)
-            chart.draw_series(PointSeries::of_element(
-                measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.computation_time.as_nanos() as usize)),
-                5,
-                &color,
-                &|c, s, st| {
-                    return EmptyElement::at(c.clone())
-                        + Circle::new((0, 0), s, st.filled())
-                        + Text::new(ns_formatter(&c.1), point_offset, ("sans-serif", 15).into_font().color(&color));
-                },
-            ))?;
+            if draw_points {
+                chart.draw_series(PointSeries::of_element(
+                    measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.computation_time.as_nanos() as usize)),
+                    5,
+                    &color,
+                    &|c, s, st| {
+                        return EmptyElement::at(c.clone())
+                            + Circle::new((0, 0), s, st.filled())
+                            + Text::new(ns_formatter(&c.1), point_offset, ("sans-serif", 15).into_font().color(&color));
+                    },
+                ))?;
+            } else {
+                chart.draw_series(PointSeries::of_element(
+                    measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.computation_time.as_nanos() as usize)),
+                    5,
+                    &color,
+                    &|c, s, st| {
+                        return EmptyElement::at(c.clone())
+                            + Circle::new((0, 0), s, st.filled())
+                    },
+                ))?;
+            }
 
             // bar chart of evaluated states
             chart.draw_secondary_series(
@@ -172,17 +186,18 @@ impl<GS: GameState> StatGenerator for BenchmarkMinimaxAlphaBeta<GS> {
             )?;
 
 
-
-            // add value labels to each point (only show measurement time formatted using ns_formatter)
-            chart.draw_secondary_series(PointSeries::of_element(
-                measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.evaluated_states)),
-                5,
-                &color,
-                &|c, _s, _st| {
-                    return EmptyElement::at(c.clone())
-                        + Text::new(value_formatter(&c.1), (value_formatter(&c.1).len() as i32 * -4, 4), ("sans-serif", 17).into_font());
-                },
-            ))?;
+            if draw_points {
+                // add value labels to each point (only show measurement time formatted using ns_formatter)
+                chart.draw_secondary_series(PointSeries::of_element(
+                    measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.evaluated_states)),
+                    5,
+                    &color,
+                    &|c, _s, _st| {
+                        return EmptyElement::at(c.clone())
+                            + Text::new(value_formatter(&c.1), (value_formatter(&c.1).len() as i32 * -4, 4), ("sans-serif", 17).into_font());
+                    },
+                ))?;
+            }
         }
 
         chart.configure_series_labels()

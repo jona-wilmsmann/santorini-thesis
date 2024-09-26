@@ -298,18 +298,27 @@ impl GameState for GameState5x5Binary128bit {
 }
 
 impl MinimaxReady for GameState5x5Binary128bit {
-    fn sort_children_states(children_states: &mut Vec<Self>, depth: usize, _cache: &mut MinimaxCache<Self>) {
+    fn sort_children_states(children_states: &mut Vec<Self>, maximizing: bool, depth: usize, _cache: &mut MinimaxCache<Self>) {
         if depth > 2 {
             // Create a vector of tuples with the static evaluation and the GameState
             let mut children_evaluations: Vec<(Self, f32)> = children_states.iter().map(|state| (state.clone(), state.get_static_evaluation())).collect();
             // Sort the vector by the static evaluation
-            children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            if maximizing {
+                children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            } else {
+                children_evaluations.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            }
             // Replace the children_states vector with the sorted vector
             *children_states = children_evaluations.iter().map(|(state, _)| state.clone()).collect();
         }
     }
 
     fn get_static_evaluation(&self) -> f32 {
+        if self.has_player_a_won() {
+            return f32::MAX;
+        } else if self.has_player_b_won() {
+            return f32::MIN;
+        }
         return gs5x5_static_evaluation::get_static_evaluation(self.get_tile_heights(), self.get_player_a_worker_tiles(), self.get_player_b_worker_tiles(), self.is_player_a_turn());
     }
 }

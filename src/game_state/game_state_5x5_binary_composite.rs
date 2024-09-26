@@ -24,8 +24,7 @@ Bit 29: Player A turn
 Bit 30: Player B has won
 Bit 31: Player A has won
 
-If a worker is not placed, the position is set to 0x1F (11111 in binary), which is out of bounds for a 5x5 board.
-If only one worker is placed, it must be in the worker 1 position.
+If a worker is not placed, the position is set to 25, which is out of bounds for a 5x5 board.
  */
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 pub struct GameState5x5BinaryComposite {
@@ -81,46 +80,58 @@ impl GameState5x5BinaryComposite {
         return tile_to_neighbors;
     }
 
-
-    pub fn get_tile_heights(&self) -> [u8; 25] {
+    fn get_heights_and_workers(&self) -> ([u8; 25], [u8; 2], [u8; 2]) {
         let mut tile_heights = [0; 25];
+        let mut player_a_workers = [0, 2];
+        let mut player_b_workers = [0, 2];
 
-        let mut worker_on_tile = [false; 25];
+        let mut worker_blocked_mask = 0u32;
+
         let mut rest_data = self.rest;
-        for _ in 0..4 {
-            let worker_tile = rest_data as u8 & 0x1F;
-            if worker_tile != Self::WORKER_NOT_PLACED {
-                worker_on_tile[worker_tile as usize] = true;
-            }
-            rest_data >>= 5;
-        }
+        // Manual iteration instead of a loop for efficiency
+        let worker_tile = rest_data & 0b11111;
+        player_a_workers[0] = worker_tile as u8;
+        worker_blocked_mask |= 1 << worker_tile;
+        rest_data >>= 5;
+        let worker_tile = rest_data & 0b11111;
+        player_a_workers[1] = worker_tile as u8;
+        worker_blocked_mask |= 1 << worker_tile;
+        rest_data >>= 5;
+        let worker_tile = rest_data & 0b11111;
+        player_b_workers[0] = worker_tile as u8;
+        worker_blocked_mask |= 1 << worker_tile;
+        rest_data >>= 5;
+        let worker_tile = rest_data & 0b11111;
+        player_b_workers[1] = worker_tile as u8;
+        worker_blocked_mask |= 1 << worker_tile;
+
+
+        let mut height_4_blocked = self.blocked_tiles & !worker_blocked_mask;
 
         let mut heights_data = self.heights;
-        let mut blocked_data = self.blocked_tiles;
         for i in 0..25 {
-            let blocked = blocked_data & 1 != 0;
-            let height = if blocked && !worker_on_tile[i] {
-                4
+            let height_4 = height_4_blocked & 1 != 0;
+            if height_4 {
+                tile_heights[i] = 4;
             } else {
-                heights_data as u8 & 0x3
-            };
-
-            tile_heights[i] = height;
+                tile_heights[i] = (heights_data & 0x3) as u8;
+            }
 
             heights_data >>= 2;
-            blocked_data >>= 1;
+            height_4_blocked >>= 1;
         }
-        return tile_heights;
+
+        return (tile_heights, player_a_workers, player_b_workers);
     }
 
-    pub fn get_player_a_worker_tiles(&self) -> [u8; 2] {
+    fn get_player_a_worker_tiles(&self) -> [u8; 2] {
         return [
             (self.rest >> 0 & 0x1F) as u8,
             (self.rest >> 5 & 0x1F) as u8
         ];
     }
 
-    pub fn get_player_b_worker_tiles(&self) -> [u8; 2] {
+    fn get_player_b_worker_tiles(&self) -> [u8; 2] {
         return [
             (self.rest >> 10 & 0x1F) as u8,
             (self.rest >> 15 & 0x1F) as u8
@@ -206,9 +217,7 @@ impl GameState for GameState5x5BinaryComposite {
     }
 
     fn to_generic_game_state(&self) -> GenericSantoriniGameState<5, 5, 2> {
-        let tile_heights = self.get_tile_heights();
-        let player_a_workers = self.get_player_a_worker_tiles();
-        let player_b_workers = self.get_player_b_worker_tiles();
+        let (tile_heights, player_a_workers, player_b_workers) = self.get_heights_and_workers();
         let player_a_turn = self.is_player_a_turn();
 
         let mut generic_tile_heights = [[0; 5]; 5];
@@ -363,18 +372,32 @@ impl GameState for GameState5x5BinaryComposite {
 }
 
 impl MinimaxReady for GameState5x5BinaryComposite {
-    fn sort_children_states(children_states: &mut Vec<Self>, depth: usize, _cache: &mut MinimaxCache<Self>) {
+    fn sort_children_states(children_states: &mut Vec<Self>, maximizing: bool, depth: usize, _cache: &mut MinimaxCache<Self>) {
+        if children_states.is_empty() {
+            return;
+        }
         if depth > 2 {
             // Create a vector of tuples with the static evaluation and the GameState
-            let mut children_evaluations: Vec<(Self, f32)> = children_states.iter().map(|state| (state.clone(), state.get_static_evaluation())).collect();
+            let mut children_evaluations: Vec<(f32, &mut Self)> = children_states.into_iter().map(|state| (state.get_static_evaluation(), state)).collect();
             // Sort the vector by the static evaluation
-            children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            if maximizing {
+                children_evaluations.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+            } else {
+                children_evaluations.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            }
             // Replace the children_states vector with the sorted vector
-            *children_states = children_evaluations.iter().map(|(state, _)| state.clone()).collect();
+            *children_states = children_evaluations.iter().map(|(_, state)| **state).collect();
         }
     }
 
     fn get_static_evaluation(&self) -> f32 {
-        return gs5x5_static_evaluation::get_static_evaluation(self.get_tile_heights(), self.get_player_a_worker_tiles(), self.get_player_b_worker_tiles(), self.is_player_a_turn());
+        if self.has_player_a_won() {
+            return f32::MAX;
+        } else if self.has_player_b_won() {
+            return f32::MIN;
+        }
+
+        let (tile_heights, player_a_workers, player_b_workers) = self.get_heights_and_workers();
+        return gs5x5_static_evaluation::get_static_evaluation(tile_heights, player_a_workers, player_b_workers, self.is_player_a_turn());
     }
 }

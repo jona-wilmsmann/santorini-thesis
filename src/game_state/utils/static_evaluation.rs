@@ -1,3 +1,5 @@
+#![feature(portable_simd)]
+
 pub mod gs4x4_static_evaluation {
     /*
     12 10 9  8
@@ -81,6 +83,46 @@ pub mod gs4x4_static_evaluation {
 }
 
 pub mod gs5x5_static_evaluation {
+    const NO_NEIGHBOR: usize = usize::MAX;
+    const TILE_TO_NEIGHBORS: [[usize; 8]; 25] = precompute_tile_to_neighbors();
+    const fn precompute_tile_to_neighbors() -> [[usize; 8]; 25] {
+        let mut position_to_neighbors = [[NO_NEIGHBOR; 8]; 25];
+
+        let mut row: isize = 0;
+        while row < 5 {
+            let mut column = 0;
+            while column < 5 {
+                let tile_id = (row * 5 + column) as usize;
+                let mut position_neighbor_index = 0;
+
+                let mut neighbor_row = row - 1;
+                while neighbor_row <= row + 1 {
+                    if neighbor_row < 0 || neighbor_row >= 5 {
+                        neighbor_row += 1;
+                        continue;
+                    }
+                    let mut neighbor_column = column - 1;
+                    while neighbor_column <= column + 1 {
+                        if neighbor_column < 0 || neighbor_column >= 5 || (neighbor_row == row && neighbor_column == column) {
+                            neighbor_column += 1;
+                            continue;
+                        }
+                        let neighbor_tile_id = (neighbor_row * 5 + neighbor_column) as usize;
+                        position_to_neighbors[tile_id][position_neighbor_index] = neighbor_tile_id;
+                        position_neighbor_index += 1;
+
+                        neighbor_column += 1;
+                    }
+                    neighbor_row += 1;
+                }
+                column += 1;
+            }
+            row += 1;
+        }
+        return position_to_neighbors;
+    }
+
+
     const DISTANCE_TO_STATIC_VALUATION: [f32; 5] = [5.0, 2.0, 1.0, 0.5, 0.0];
     const HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION: [[f32; 5]; 3] = [
         [1.0, 1.5, -1.0, 0.0, -1.0], //Start height 0
@@ -93,61 +135,183 @@ pub mod gs5x5_static_evaluation {
     const fn precompute_tile_to_tile_to_height_to_height_to_valuation() -> [[[[f32; 5]; 3]; 25]; 25] {
         let mut tile_to_tile_to_height_to_height_to_valuation = [[[[0.0; 5]; 3]; 25]; 25];
 
-        let mut i = 0;
-        while i < 25 {
-            let row_i = i / 5;
-            let column_i = i % 5;
-            let mut j = 0;
-            while j < 25 {
-                let row_j = j / 5;
-                let column_j = j % 5;
+        let mut worker_tile_id = 0;
+        while worker_tile_id < 25 {
+            let worker_tile_row = worker_tile_id / 5;
+            let worker_tile_column = worker_tile_id % 5;
+            let mut other_tile_id = 0;
+            while other_tile_id < 25 {
+                let other_tile_row = other_tile_id / 5;
+                let other_tile_column = other_tile_id % 5;
 
-                let row_distance = if row_i > row_j { row_i - row_j } else { row_j - row_i };
-                let column_distance = if column_i > column_j { column_i - column_j } else { column_j - column_i };
+                let row_distance = if worker_tile_row > other_tile_row { worker_tile_row - other_tile_row } else { other_tile_row - worker_tile_row };
+                let column_distance = if worker_tile_column > other_tile_column { worker_tile_column - other_tile_column } else { other_tile_column - worker_tile_column };
                 let distance = if row_distance > column_distance { row_distance } else { column_distance };
 
-                let mut start_height = 0;
-                while start_height <= 2 {
-                    let mut neighbor_height = 0;
-                    while neighbor_height <= 4 {
-                        let height_valuation = HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION[start_height][neighbor_height];
+                let mut worker_height = 0;
+                while worker_height <= 2 {
+                    let mut other_height = 0;
+                    while other_height <= 4 {
+                        let height_valuation = HEIGHT_TO_NEIGHBOR_HEIGHT_TO_STATIC_VALUATION[worker_height][other_height];
                         let distance_valuation = DISTANCE_TO_STATIC_VALUATION[distance];
-                        tile_to_tile_to_height_to_height_to_valuation[i][j][start_height][neighbor_height] = height_valuation * distance_valuation;
-                        neighbor_height += 1;
+                        tile_to_tile_to_height_to_height_to_valuation[worker_tile_id][other_tile_id][worker_height][other_height] = height_valuation * distance_valuation;
+                        other_height += 1;
                     }
 
-                    start_height += 1;
+                    worker_height += 1;
                 }
-                j += 1;
+                other_tile_id += 1;
             }
-            i += 1;
+            worker_tile_id += 1;
         }
 
         return tile_to_tile_to_height_to_height_to_valuation;
     }
 
     // Positions are 0-24 if placed, or 25 if not placed
-    pub fn get_static_evaluation(tile_heights: [u8; 25], player_a_worker_tiles: [u8; 2], player_b_worker_tiles: [u8; 2], player_a_turn: bool) -> f32 {
-        let player_a_workers = [player_a_worker_tiles[0] as usize, player_a_worker_tiles[1] as usize];
-        let player_b_workers = [player_b_worker_tiles[0] as usize, player_b_worker_tiles[1] as usize];
-
-        if (player_a_workers[0] < 25 && tile_heights[player_a_workers[0]] == 3) || (player_a_workers[1] < 25 && tile_heights[player_a_workers[1]] == 3) {
-            return if player_a_turn { f32::MAX } else { f32::MIN };
-        } else if (player_b_workers[0] < 25 && tile_heights[player_b_workers[0]] == 3) || (player_b_workers[1] < 25 && tile_heights[player_b_workers[1]] == 3) {
-            return if player_a_turn { f32::MIN } else { f32::MAX };
+    // Undefined behavior if the state is already won, it is expected that the caller checks this before calling this function
+    pub fn get_static_evaluation_old(tile_heights: [u8; 25], player_a_worker_tiles: [u8; 2], player_b_worker_tiles: [u8; 2], player_a_turn: bool) -> f32 {
+        if player_b_worker_tiles[0] == 25 {
+            // TODO: Consider unplaced workers better
+            // Unplaced workers
+            return 0.0;
         }
+
+        let workers_a_tile_and_height = [
+            (player_a_worker_tiles[0] as usize, tile_heights[player_a_worker_tiles[0] as usize] as usize),
+            (player_a_worker_tiles[1] as usize, tile_heights[player_a_worker_tiles[1] as usize] as usize),
+        ];
+        let workers_b_tile_and_height = [
+            (player_b_worker_tiles[0] as usize, tile_heights[player_b_worker_tiles[0] as usize] as usize),
+            (player_b_worker_tiles[1] as usize, tile_heights[player_b_worker_tiles[1] as usize] as usize),
+        ];
+
+        debug_assert!(workers_a_tile_and_height[0].1 != 3 && workers_a_tile_and_height[1].1 != 3);
+        debug_assert!(workers_b_tile_and_height[0].1 != 3 && workers_b_tile_and_height[1].1 != 3);
 
         let mut valuation = 0.0;
 
         // TODO: Consider whose turn it is
-        // TODO: Consider unplaced workers
 
         for i in 0..25 {
-            for player_a_worker in &player_a_workers {
-                valuation += TILE_TO_TILE_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[*player_a_worker][i][tile_heights[*player_a_worker] as usize][tile_heights[i] as usize];
+            let tile_height = tile_heights[i] as usize;
+            for (a_worker_tile, a_worker_height) in &workers_a_tile_and_height {
+                valuation += TILE_TO_TILE_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[*a_worker_tile][i][*a_worker_height][tile_height];
             }
-            for player_b_worker in &player_b_workers {
-                valuation -= TILE_TO_TILE_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[*player_b_worker][i][tile_heights[*player_b_worker] as usize][tile_heights[i] as usize];
+            for (b_worker_tile, b_worker_height) in &workers_b_tile_and_height {
+                valuation -= TILE_TO_TILE_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[*b_worker_tile][i][*b_worker_height][tile_height];
+            }
+        }
+
+        return valuation;
+    }
+
+
+    const TILE_TO_TILE_TO_DISTANCE: [[usize; 25]; 25] = precompute_tile_to_tile_to_distance();
+    const fn precompute_tile_to_tile_to_distance() -> [[usize; 25]; 25] {
+        let mut tile_to_tile_to_distance = [[0; 25]; 25];
+
+        let mut tile_1 = 0;
+        while tile_1 < 25 {
+            let row_1 = tile_1 / 5;
+            let column_1 = tile_1 % 5;
+            let mut tile_2 = 0;
+            while tile_2 < 25 {
+                let row_2 = tile_2 / 5;
+                let column_2 = tile_2 % 5;
+
+                let row_distance = if row_1 > row_2 { row_1 - row_2 } else { row_2 - row_1 };
+                let column_distance = if column_1 > column_2 { column_1 - column_2 } else { column_2 - column_1 };
+                let distance = if row_distance > column_distance { row_distance } else { column_distance };
+
+                tile_to_tile_to_distance[tile_1][tile_2] = distance;
+                tile_2 += 1;
+            }
+            tile_1 += 1;
+        }
+
+        return tile_to_tile_to_distance;
+    }
+
+    const ACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION: [[f32; 5]; 3] = [
+        [0.0, 1.0, 1.0, 0.0, -2.0], //Start height 0
+        [0.0, 1.0, 3.0, 0.0, -2.0], //Start height 1
+        [0.0, 1.0, 4.0, f32::MAX, -1.0], //Start height 2
+    ];
+
+    const INACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION: [[f32; 5]; 3] = [
+        [0.3, 0.4, 0.5, 0.0, 0.0], //Start height 0
+        [0.3, 0.5, 1.0, 0.5, 0.0], //Start height 1
+        [0.3, 0.5, 1.7, 10.0, 0.0], //Start height 2
+    ];
+
+    const CENTER_DISTANCE_VALUATIONS: [f32; 6] = [
+        2.0, // Distance 0
+        0.8, // Distance 1
+        0.0, // Distance sqrt(2)
+        0.0, // Distance 2
+        0.0, // Distance sqrt(5)
+        1.0, // Distance sqrt(8)
+    ];
+    const TILE_CENTER_VALUE: [f32; 25] = [
+        CENTER_DISTANCE_VALUATIONS[5], CENTER_DISTANCE_VALUATIONS[4], CENTER_DISTANCE_VALUATIONS[3], CENTER_DISTANCE_VALUATIONS[4], CENTER_DISTANCE_VALUATIONS[5],
+        CENTER_DISTANCE_VALUATIONS[4], CENTER_DISTANCE_VALUATIONS[2], CENTER_DISTANCE_VALUATIONS[1], CENTER_DISTANCE_VALUATIONS[2], CENTER_DISTANCE_VALUATIONS[4],
+        CENTER_DISTANCE_VALUATIONS[3], CENTER_DISTANCE_VALUATIONS[1], CENTER_DISTANCE_VALUATIONS[0], CENTER_DISTANCE_VALUATIONS[1], CENTER_DISTANCE_VALUATIONS[3],
+        CENTER_DISTANCE_VALUATIONS[4], CENTER_DISTANCE_VALUATIONS[2], CENTER_DISTANCE_VALUATIONS[1], CENTER_DISTANCE_VALUATIONS[2], CENTER_DISTANCE_VALUATIONS[4],
+        CENTER_DISTANCE_VALUATIONS[5], CENTER_DISTANCE_VALUATIONS[4], CENTER_DISTANCE_VALUATIONS[3], CENTER_DISTANCE_VALUATIONS[4], CENTER_DISTANCE_VALUATIONS[5],
+    ];
+
+
+    // Positions are 0-24 if placed, or 25 if not placed
+    // Undefined behavior if the state is already won, it is expected that the caller checks this before calling this function
+    pub fn get_static_evaluation(tile_heights: [u8; 25], player_a_worker_tiles: [u8; 2], player_b_worker_tiles: [u8; 2], player_a_turn: bool) -> f32 {
+        if player_b_worker_tiles[0] == 25 {
+            // TODO: Consider unplaced workers better
+            // Unplaced workers
+            return 0.0;
+        }
+
+        debug_assert!(tile_heights[player_a_worker_tiles[0] as usize] != 3 && tile_heights[player_a_worker_tiles[1] as usize] != 3);
+        debug_assert!(tile_heights[player_b_worker_tiles[0] as usize] != 3 && tile_heights[player_b_worker_tiles[1] as usize] != 3);
+
+        let mut valuation = 0.0;
+
+
+        for a_worker_tile in &player_a_worker_tiles {
+            let worker_tile = *a_worker_tile as usize;
+            let worker_height = tile_heights[worker_tile] as usize;
+
+            valuation += TILE_CENTER_VALUE[worker_tile];
+
+            for neighbor_tile in &TILE_TO_NEIGHBORS[worker_tile] {
+                if *neighbor_tile == NO_NEIGHBOR {
+                    break;
+                }
+                let neighbor_tile_height = tile_heights[*neighbor_tile] as usize;
+                if player_a_turn {
+                    valuation += ACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION[worker_height][neighbor_tile_height];
+                } else {
+                    valuation += INACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION[worker_height][neighbor_tile_height];
+                }
+            }
+        }
+
+        for b_worker_tile in &player_b_worker_tiles {
+            let worker_tile = *b_worker_tile as usize;
+            let worker_height = tile_heights[worker_tile] as usize;
+
+            valuation -= TILE_CENTER_VALUE[worker_tile];
+
+            for neighbor_tile in &TILE_TO_NEIGHBORS[worker_tile] {
+                if *neighbor_tile == NO_NEIGHBOR {
+                    break;
+                }
+                let neighbor_tile_height = tile_heights[*neighbor_tile] as usize;
+                if player_a_turn {
+                    valuation -= INACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION[worker_height][neighbor_tile_height];
+                } else {
+                    valuation -= ACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION[worker_height][neighbor_tile_height];
+                }
             }
         }
 

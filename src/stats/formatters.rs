@@ -38,11 +38,13 @@ fn number_to_3_relevant_digits(number: f64, suffix: &str) -> String {
     } else {
         number_string = format!("{:.2}", number);
     }
-    while number_string.ends_with("0") {
-        number_string.pop();
-    }
-    if number_string.ends_with(".") {
-        number_string.pop();
+    if number_string.contains(".") {
+        while number_string.ends_with("0") {
+            number_string.pop();
+        }
+        if number_string.ends_with(".") {
+            number_string.pop();
+        }
     }
     return format!("{}{}", number_string, suffix);
 }

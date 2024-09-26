@@ -18,7 +18,7 @@ pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash:
 }
 
 pub trait MinimaxReady : GameState {
-    fn sort_children_states(children_states: &mut Vec<Self>, depth: usize, cache: &mut MinimaxCache<Self>);
+    fn sort_children_states(children_states: &mut Vec<Self>, maximizing: bool, depth: usize, cache: &mut MinimaxCache<Self>);
     fn get_static_evaluation(&self) -> f32;
 }
 

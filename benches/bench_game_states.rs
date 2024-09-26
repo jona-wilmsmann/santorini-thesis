@@ -9,7 +9,7 @@ use santorini_minimax::game_state::game_state_5x5_binary_128bit::GameState5x5Bin
 use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::generic_game_state::GenericGameState;
-use santorini_minimax::minimax::{alpha_beta_minimax, minimax, simple_minimax};
+use santorini_minimax::minimax::{alpha_beta_sorted_minimax, alpha_beta_minimax, minimax, simple_minimax};
 use santorini_minimax::minimax::minimax_cache::MinimaxCache;
 
 fn benchmark_game_state<GS: GameState>(name: &str, c: &mut Criterion) {
@@ -55,7 +55,7 @@ fn benchmark_game_state<GS: GameState>(name: &str, c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_minimax<GS: GameState + MinimaxReady>(simple_depth: usize, alpha_beta_depth: usize, depth: usize, name: &str, c: &mut Criterion) {
+fn benchmark_minimax<GS: GameState + MinimaxReady>(simple_depth: usize, alpha_beta_depth: usize, sorted_alpha_beta_depth: usize, depth: usize, name: &str, c: &mut Criterion) {
     let mut rng = rand::rngs::StdRng::seed_from_u64(0);
 
     let random_states: Vec<GS> = (0..1000000).map(|_| GS::from_generic_game_state(&GenericGameState::generate_random_state_rng(&mut rng))).collect();
@@ -79,6 +79,12 @@ fn benchmark_minimax<GS: GameState + MinimaxReady>(simple_depth: usize, alpha_be
     group.bench_function(format!("alpha beta minimax to depth {} for 100 states", alpha_beta_depth), |b| b.iter(|| {
         for state in random_states.iter().take(100) {
             black_box(alpha_beta_minimax(state, alpha_beta_depth));
+        }
+    }));
+
+    group.bench_function(format!("sorted alpha beta minimax to depth {} for 100 states", sorted_alpha_beta_depth), |b| b.iter(|| {
+        for state in random_states.iter().take(100) {
+            black_box(alpha_beta_sorted_minimax(state, sorted_alpha_beta_depth));
         }
     }));
 
@@ -159,13 +165,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     benchmark_game_state::<GameState4x4Struct>("Struct - 4x4", c);
 
 
-    benchmark_minimax::<GameState5x5Binary128bit>(4, 5, 5, "Binary 128bit - 5x5", c);
-    benchmark_minimax::<GameState5x5Struct>(4, 5, 5, "Struct - 5x5", c);
-    benchmark_minimax::<GameState5x5BinaryComposite>(4, 5, 5, "Binary Composite - 5x5", c);
-    benchmark_minimax::<GameState5x5Binary5bit>(4, 5, 5, "Binary 5bit - 5x5", c);
-    benchmark_minimax::<GameState4x4Binary3Bit>(5, 6, 7, "Binary 3bit - 4x4", c);
-    benchmark_minimax::<GameState4x4Binary4Bit>(5, 6, 7, "Binary 4bit - 4x4", c);
-    benchmark_minimax::<GameState4x4Struct>(5, 6, 7, "Struct - 4x4", c);
+    benchmark_minimax::<GameState5x5Binary128bit>(4, 5, 6, 6, "Binary 128bit - 5x5", c);
+    benchmark_minimax::<GameState5x5Struct>(4, 5, 6, 6, "Struct - 5x5", c);
+    benchmark_minimax::<GameState5x5BinaryComposite>(4, 5, 6, 6, "Binary Composite - 5x5", c);
+    benchmark_minimax::<GameState5x5Binary5bit>(4, 5, 6, 6, "Binary 5bit - 5x5", c);
+    benchmark_minimax::<GameState4x4Binary3Bit>(5, 6, 7, 7, "Binary 3bit - 4x4", c);
+    benchmark_minimax::<GameState4x4Binary4Bit>(5, 6, 7, 7, "Binary 4bit - 4x4", c);
+    benchmark_minimax::<GameState4x4Struct>(5, 6, 7, 7, "Struct - 4x4", c);
 
 
     benchmark_simplified::<GameState4x4Binary3Bit>("Binary 3bit - 4x4", c);

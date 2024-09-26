@@ -1,17 +1,9 @@
-use core::hint::black_box;
 use std::cmp::max;
 use std::time::{Duration, Instant};
-use num_format::Locale::ro;
-use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
-use crate::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
-use crate::game_state::game_state_4x4_binary_4bit::GameState4x4Binary4Bit;
-use crate::game_state::game_state_4x4_struct::GameState4x4Struct;
 use crate::game_state::GameState;
-use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
-use crate::generic_game_state::GenericGameState;
 use crate::minimax::simple_minimax;
 use crate::stats::formatters::{ns_formatter, value_formatter};
 use crate::stats::StatGenerator;
@@ -35,7 +27,7 @@ pub struct MinimaxMeasurement {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct BenchmarkGameStatesBasicData {
+pub struct BenchmarkMinimaxSimpleData {
     pub(crate) initial_game_state: String,
     pub(crate) measurements_simple: Vec<MinimaxMeasurement>,
 }
@@ -56,7 +48,7 @@ impl<GS: GameState> BenchmarkMinimaxSimple<GS> {
 
 
 impl<GS: GameState> StatGenerator for BenchmarkMinimaxSimple<GS> {
-    type DataType = BenchmarkGameStatesBasicData;
+    type DataType = BenchmarkMinimaxSimpleData;
 
     fn get_stat_name(&self) -> String {
         return format!("benchmark_minimax_simple_{}", self.game_state_short_name);
@@ -83,7 +75,7 @@ impl<GS: GameState> StatGenerator for BenchmarkMinimaxSimple<GS> {
             });
         }
 
-        return Ok(BenchmarkGameStatesBasicData {
+        return Ok(BenchmarkMinimaxSimpleData {
             initial_game_state: self.initial_game_state.to_string(),
             measurements_simple: measurements,
         });
@@ -174,7 +166,7 @@ impl<GS: GameState> StatGenerator for BenchmarkMinimaxSimple<GS> {
             data.measurements_simple.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.evaluated_states)),
             5,
             &BLUE,
-            &|c, s, st| {
+            &|c, _s, _st| {
                 return EmptyElement::at(c.clone())
                     + Text::new(value_formatter(&c.1), (value_formatter(&c.1).len() as i32 * -4, 4), ("sans-serif", 17).into_font());
             },
