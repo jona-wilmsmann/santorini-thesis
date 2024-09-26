@@ -41,7 +41,7 @@ impl<GS: GameState> StatGenerator for BranchingFactorByBlockCount<GS> {
         return format!("branching_factor_by_block_count_{}", self.game_name);
     }
 
-    fn gather_data(&self) -> anyhow::Result<Self::DataType> {
+    async fn gather_data(&self) -> anyhow::Result<Self::DataType> {
         let mut rng = rand::thread_rng();
         let mut children_states = Vec::new();
 

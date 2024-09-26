@@ -1,5 +1,3 @@
-#![feature(portable_simd)]
-
 pub mod gs4x4_static_evaluation {
     /*
     12 10 9  8

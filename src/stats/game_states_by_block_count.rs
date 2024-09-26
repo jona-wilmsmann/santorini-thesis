@@ -65,7 +65,7 @@ impl StatGenerator for GameStatesByBlockCount {
         return format!("game_states_by_block_count_{}t_{}wpp", self.tiles, self.workers_per_player);
     }
 
-    fn gather_data(&self) -> anyhow::Result<Self::DataType> {
+    async fn gather_data(&self) -> anyhow::Result<Self::DataType> {
         let mut game_states_by_block_count = vec![0u128; self.tiles * 4 + 1];
 
         let block_configurations_by_block_count = self.get_block_configurations();

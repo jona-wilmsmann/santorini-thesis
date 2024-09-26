@@ -1,3 +1,4 @@
+use std::env;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
@@ -5,12 +6,16 @@ pub trait StatGenerator {
     type DataType: Serialize + for<'a> Deserialize<'a>;
 
     fn get_stat_name(&self) -> String;
-    fn gather_data(&self) -> Result<Self::DataType>;
+    #[allow(async_fn_in_trait)]
+    async fn gather_data(&self) -> Result<Self::DataType>;
     fn generate_graph(&self, data: Self::DataType, data_time: String, output_folder_path: &str) -> Result<()>;
 
 
+    fn get_stats_folder() -> String {
+        return env::var("STATS_FOLDER").unwrap_or("stats".to_string());
+    }
     fn store_data(&self, data: Self::DataType) -> Result<String> {
-        let data_folder = format!("stats/data/{}", self.get_stat_name());
+        let data_folder = format!("{}/data/{}", Self::get_stats_folder(), self.get_stat_name());
         std::fs::create_dir_all(data_folder.clone())?;
         let file_name = format!("{}.json", chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
         let file_path = format!("{}/{}", data_folder, file_name);
@@ -22,13 +27,13 @@ pub trait StatGenerator {
     }
 
     fn get_data(&self, file_name: &str) -> Result<Self::DataType> {
-        let data = std::fs::read_to_string(format!("stats/data/{}/{}", self.get_stat_name(), file_name))?;
+        let data = std::fs::read_to_string(format!("{}/data/{}/{}", Self::get_stats_folder(), self.get_stat_name(), file_name))?;
         let data: Self::DataType = serde_json::from_str(&data)?;
         return Ok(data);
     }
 
     fn get_most_recent_data_file(&self) -> Result<String> {
-        let data_folder = format!("stats/data/{}", self.get_stat_name());
+        let data_folder = format!("{}/data/{}", Self::get_stats_folder(), self.get_stat_name());
         // Find all files in the data folder
         let files = std::fs::read_dir(data_folder.clone())?;
         let mut most_recent_file = None;
@@ -52,8 +57,9 @@ pub trait StatGenerator {
         }
     }
 
-    fn gather_and_store_data(&self) -> Result<String> {
-        let data = self.gather_data()?;
+    #[allow(async_fn_in_trait)]
+    async fn gather_and_store_data(&self) -> Result<String> {
+        let data = self.gather_data().await?;
         return self.store_data(data);
     }
 
@@ -62,15 +68,15 @@ pub trait StatGenerator {
         let data = self.get_data(&most_recent_data_file)?;
         // Strip file ending
         let data_time = most_recent_data_file.split('.').next().unwrap().to_string();
-        let output_folder_path = format!("stats/graphs/{}", self.get_stat_name());
+        let output_folder_path = format!("{}/graphs/{}", Self::get_stats_folder(), self.get_stat_name());
         std::fs::create_dir_all(output_folder_path.clone())?;
         return self.generate_graph(data, data_time, output_folder_path.as_str());
     }
 }
 
-pub mod formatters;
 pub mod game_states_by_block_count;
 pub mod branching_factor_by_block_count;
 pub mod benchmark_minimax_simple;
 pub mod benchmark_minimax_alpha_beta;
 pub mod benchmark_minimax_sorted;
+pub mod utils;
