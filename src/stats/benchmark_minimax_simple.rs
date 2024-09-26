@@ -1,17 +1,13 @@
 use std::env;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use plotters::prelude::*;
-use rand::SeedableRng;
-use tokio::sync::Mutex;
 use crate::game_state::GameState;
-use crate::generic_game_state::GenericGameState;
 use crate::minimax::simple_minimax;
 use crate::stats::StatGenerator;
 use crate::stats::utils::draw_minimax_benchmark::{AverageMinimaxMeasurement, draw_minimax_benchmark, MinimaxBenchmarkData, MinimaxMeasurement};
 use crate::stats::utils::gather_minimax_benchmark::gather_minimax_benchmark;
 
+#[derive(Clone)]
 pub struct BenchmarkMinimaxSimple<GS: GameState> {
     pub(crate) game_name: String,
     pub(crate) game_state_name: String,
@@ -24,9 +20,9 @@ pub struct BenchmarkMinimaxSimple<GS: GameState> {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BenchmarkMinimaxSimpleData {
-    cpu_name: String,
-    pub(crate) raw_measurements_simple: Vec<Vec<MinimaxMeasurement>>,
-    pub(crate) average_measurements_simple: Vec<AverageMinimaxMeasurement>,
+    pub cpu_name: String,
+    pub raw_measurements_simple: Vec<Vec<MinimaxMeasurement>>,
+    pub average_measurements_simple: Vec<AverageMinimaxMeasurement>,
 }
 
 
@@ -49,7 +45,7 @@ impl<GS: GameState + 'static> StatGenerator for BenchmarkMinimaxSimple<GS> {
     type DataType = BenchmarkMinimaxSimpleData;
 
     fn get_stat_name(&self) -> String {
-        return format!("benchmark_minimax_simple_{}", self.game_state_short_name);
+        return format!("minimax_simple_{}", self.game_state_short_name);
     }
 
     async fn gather_data(&self) -> anyhow::Result<Self::DataType> {
@@ -80,6 +76,12 @@ impl<GS: GameState + 'static> StatGenerator for BenchmarkMinimaxSimple<GS> {
         };
         let graph_path = format!("{}/{}.svg", output_folder_path, data_time);
 
-        return draw_minimax_benchmark(graph_path, "Simple Minimax Benchmark".to_string(), self.game_state_name.clone(), vec![simple_data]);
+        return draw_minimax_benchmark(
+            graph_path,
+            format!("Simple Minimax - {} Benchmark", self.game_name),
+            self.game_state_name.clone(),
+            self.block_count,
+            vec![simple_data]
+        );
     }
 }

@@ -29,17 +29,17 @@ pub struct MinimaxBenchmarkData {
     pub draw_execution_time_text: bool,
     pub draw_game_states_text: bool,
     pub average_measurements: Vec<AverageMinimaxMeasurement>,
-    pub raw_measurements: Vec<Vec<MinimaxMeasurement>>
+    pub raw_measurements: Vec<Vec<MinimaxMeasurement>>,
 }
 
-pub fn draw_minimax_benchmark(graph_path: String, graph_name: String, encoding_name: String, data: Vec<MinimaxBenchmarkData>) -> anyhow::Result<()> {
+pub fn draw_minimax_benchmark(graph_path: String, graph_name: String, encoding_name: String, block_count: usize, data: Vec<MinimaxBenchmarkData>) -> anyhow::Result<()> {
     let width = 1000;
     let height = 500;
 
     let root = SVGBackend::new(&graph_path, (width, height)).into_drawing_area();
     root.fill(&WHITE)?;
 
-    let graph_upper_bound = 1e11 as usize;
+    let graph_upper_bound = 1e12 as usize;
 
     let log_duration_range = (0..graph_upper_bound).log_scale();
     let log_evaluated_states_range = (0..graph_upper_bound).log_scale();
@@ -60,6 +60,7 @@ pub fn draw_minimax_benchmark(graph_path: String, graph_name: String, encoding_n
 
     chart
         .configure_mesh()
+        .y_labels(13)
         .y_desc("Execution Time")
         .x_desc("Depth")
         .y_label_formatter(&|y| ns_formatter(y))
@@ -69,6 +70,7 @@ pub fn draw_minimax_benchmark(graph_path: String, graph_name: String, encoding_n
 
     chart
         .configure_secondary_axes()
+        .y_labels(13)
         .y_desc("Evaluated States")
         .y_label_formatter(&|y| value_formatter(y))
         .axis_desc_style(("sans-serif", 20).into_font())
@@ -77,19 +79,12 @@ pub fn draw_minimax_benchmark(graph_path: String, graph_name: String, encoding_n
 
 
     let mut number_of_measurements_option = None;
-    let mut block_count_option = None;
     let mut cpu_name_option = None;
     for benchmark in &data {
         if let Some(number_of_measurements) = number_of_measurements_option {
             assert_eq!(number_of_measurements, benchmark.raw_measurements.len());
         } else {
             number_of_measurements_option = Some(benchmark.raw_measurements.len());
-        }
-
-        if let Some(block_count) = block_count_option {
-            assert_eq!(block_count, benchmark.average_measurements.len() + 1);
-        } else {
-            block_count_option = Some(benchmark.average_measurements.len() + 1);
         }
 
         if let Some(ref cpu_name) = cpu_name_option {
@@ -99,52 +94,68 @@ pub fn draw_minimax_benchmark(graph_path: String, graph_name: String, encoding_n
         }
     }
     let number_of_measurements = number_of_measurements_option.expect("No benchmarks found");
-    let block_count = block_count_option.expect("No benchmarks found");
     let cpu_name = cpu_name_option.expect("No benchmarks found");
 
     for benchmark in &data {
         let max_depth = benchmark.average_measurements.len() - 1;
 
-        let mut raw_execution_times_simple = vec![Vec::with_capacity(number_of_measurements); max_depth + 1];
-        for depth in 0..=max_depth {
-            for single_measurement in benchmark.raw_measurements.iter() {
-                raw_execution_times_simple[depth].push(single_measurement[depth].computation_time.as_nanos() as usize);
+        let mut raw_execution_times = vec![Vec::with_capacity(number_of_measurements); max_depth + 1];
+        let mut raw_evaluated_states = vec![Vec::with_capacity(number_of_measurements); max_depth + 1];
+
+        for single_measurement in benchmark.raw_measurements.iter() {
+            for depth in 0..=max_depth {
+                raw_execution_times[depth].push(single_measurement[depth].computation_time.as_nanos() as usize);
+                raw_evaluated_states[depth].push(single_measurement[depth].evaluated_states);
+                if single_measurement[depth].result.is_infinite() {
+                    // If the game is solved, we disregard the deeper depths
+                    break;
+                }
             }
-            raw_execution_times_simple[depth].sort();
         }
 
-        let errors = raw_execution_times_simple.iter().map(|execution_times| {
+        for depth in 0..=max_depth {
+            raw_execution_times[depth].sort();
+        }
+
+        let cleaned_execution_time_data = raw_execution_times.iter().map(|execution_times| {
             let p5 = execution_times[execution_times.len() / 20];
-            let p95 = execution_times[19 * execution_times.len() / 20];
             let average = execution_times.iter().sum::<usize>() / execution_times.len();
+            let p95 = execution_times[19 * execution_times.len() / 20];
+            return (p5, average, p95);
+        }).collect::<Vec<(usize, usize, usize)>>();
+
+        let cleaned_evaluated_states_data = raw_evaluated_states.iter().map(|evaluated_states| {
+            let p5 = evaluated_states[evaluated_states.len() / 20];
+            let average = evaluated_states.iter().sum::<usize>() / evaluated_states.len();
+            let p95 = evaluated_states[19 * evaluated_states.len() / 20];
             return (p5, average, p95);
         }).collect::<Vec<(usize, usize, usize)>>();
 
 
         // draw line series
         chart.draw_series(LineSeries::new(
-            benchmark.average_measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.computation_time.as_nanos() as usize)),
+            cleaned_execution_time_data.iter().enumerate().map(|(i, (_, average, _))| (SegmentValue::CenterOf(i), *average)),
             &benchmark.color,
         ))?
             .label(&benchmark.label)
             .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &benchmark.color));
 
         // draw error bars
-        chart.draw_series(errors.iter().enumerate().map(|(i, (p5, average, p95))| {
+        chart.draw_series(cleaned_execution_time_data.iter().enumerate().map(|(i, (p5, average, p95))| {
             return ErrorBar::new_vertical(
                 SegmentValue::CenterOf(i),
                 *p5,
                 *average,
                 *p95,
-                benchmark.color.filled(),
-                10
+                benchmark.color.mix(if benchmark.draw_execution_time_text { 0.8 } else { 0.5 }).filled(),
+                10,
             );
         }))?;
 
         if benchmark.draw_execution_time_text {
             // add value labels to each point (only show measurement time formatted using ns_formatter)
             chart.draw_series(PointSeries::of_element(
-                benchmark.average_measurements.iter().map(|m| (SegmentValue::CenterOf(m.depth), m.computation_time.as_nanos() as usize)),
+                cleaned_execution_time_data.iter().enumerate().map(|(i, (_, average, _))| (SegmentValue::CenterOf(i), *average)),
                 5,
                 &benchmark.color,
                 &|c, _s, _st| {
@@ -157,16 +168,16 @@ pub fn draw_minimax_benchmark(graph_path: String, graph_name: String, encoding_n
         // bar chart of evaluated states
         chart.draw_secondary_series(
             Histogram::vertical(&chart)
-                .style(benchmark.color.mix(0.4).filled())
+                .style(benchmark.color.mix(if benchmark.draw_game_states_text { 0.6 } else { 0.4 }).filled())
                 .margin(10)
-                .data(benchmark.average_measurements.iter().map(|m| (m.depth, m.evaluated_states))),
+                .data(cleaned_evaluated_states_data.iter().enumerate().map(|(i, (_, average, _))| (SegmentValue::CenterOf(i), *average))),
         )?;
 
 
-        if benchmark.draw_execution_time_text {
+        if benchmark.draw_game_states_text {
             // add value labels to each point (only show measurement time formatted using ns_formatter)
             chart.draw_secondary_series(PointSeries::of_element(
-                benchmark.average_measurements.iter().take(1).map(|m| (SegmentValue::CenterOf(m.depth), m.evaluated_states)),
+                cleaned_evaluated_states_data.iter().take(1).enumerate().map(|(i, (_, average, _))| (SegmentValue::CenterOf(i), *average)),
                 5,
                 &benchmark.color,
                 &|c, _s, _st| {
@@ -175,7 +186,7 @@ pub fn draw_minimax_benchmark(graph_path: String, graph_name: String, encoding_n
                 },
             ))?;
             chart.draw_secondary_series(PointSeries::of_element(
-                benchmark.average_measurements.iter().skip(1).map(|m| (SegmentValue::CenterOf(m.depth), m.evaluated_states)),
+                cleaned_evaluated_states_data.iter().skip(1).enumerate().map(|(i, (_, average, _))| (SegmentValue::CenterOf(i + 1), *average)),
                 5,
                 &benchmark.color,
                 &|c, _s, _st| {

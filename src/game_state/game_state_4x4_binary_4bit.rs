@@ -6,7 +6,6 @@ use crate::game_state::utils::precompute_position_to_tile_id::precompute_positio
 use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
 use crate::game_state::utils::symmetric_simplified::gs4x4_symmetric_simplified;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
-use crate::minimax::minimax_cache::MinimaxCache;
 
 /*
 For this encoding, player A is always the active player
@@ -334,21 +333,6 @@ impl GameState for GameState4x4Binary4Bit {
 }
 
 impl MinimaxReady for GameState4x4Binary4Bit {
-    fn sort_children_states(children_states: &mut Vec<Self>, maximizing: bool, depth: usize, _cache: &mut MinimaxCache<Self>) {
-        if depth > 2 {
-            // Create a vector of tuples with the static evaluation and the GameState
-            let mut children_evaluations: Vec<(Self, f32)> = children_states.iter().map(|state| (state.clone(), state.get_static_evaluation())).collect();
-            // Sort the vector by the static evaluation
-            if maximizing {
-                children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-            } else {
-                children_evaluations.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-            }
-            // Replace the children_states vector with the sorted vector
-            *children_states = children_evaluations.iter().map(|(state, _)| state.clone()).collect();
-        }
-    }
-
     fn get_static_evaluation(&self) -> f32 {
         let mut player_a_position = 16;
         let mut player_b_position = 16;
@@ -382,6 +366,10 @@ impl MinimaxReady for GameState4x4Binary4Bit {
         } else {
             gs4x4_static_evaluation::get_static_evaluation(position_heights, player_b_position, player_a_position, false)
         };
+    }
+
+    fn get_child_evaluation(&self) -> f32 {
+        return self.get_static_evaluation();
     }
 }
 

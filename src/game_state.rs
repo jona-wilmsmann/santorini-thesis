@@ -1,6 +1,5 @@
 use std::fmt::{Debug, Display};
 use crate::generic_game_state::GenericGameState;
-use crate::minimax::minimax_cache::MinimaxCache;
 
 pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash::Hash {
     type RawValue: Debug;
@@ -18,8 +17,9 @@ pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash:
 }
 
 pub trait MinimaxReady : GameState {
-    fn sort_children_states(children_states: &mut Vec<Self>, maximizing: bool, depth: usize, cache: &mut MinimaxCache<Self>);
     fn get_static_evaluation(&self) -> f32;
+    // The child evaluation only needs to evaluate the workers of the inactive player, as the active player will be the same for all states with the same parent state
+    fn get_child_evaluation(&self) -> f32;
 }
 
 pub trait SimplifiedState {

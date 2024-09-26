@@ -9,7 +9,7 @@ pub struct BitVector<const BITS_PER_ENTRY: usize> {
 }
 
 impl<const BITS_PER_ENTRY: usize> BitVector<BITS_PER_ENTRY> {
-    const VALID_BIT_COUNT_ASSERTION: () = assert_valid_bit_count(BITS_PER_ENTRY);
+    const _VALID_BIT_COUNT_ASSERTION: () = assert_valid_bit_count(BITS_PER_ENTRY);
     const CHUNKS_PER_BYTE: usize = 8 / BITS_PER_ENTRY;
     const BITMASK: u8 = (1u8 << BITS_PER_ENTRY).wrapping_sub(1);
 

@@ -168,7 +168,7 @@ pub mod gs5x5_static_evaluation {
 
     // Positions are 0-24 if placed, or 25 if not placed
     // Undefined behavior if the state is already won, it is expected that the caller checks this before calling this function
-    pub fn get_static_evaluation_old(tile_heights: [u8; 25], player_a_worker_tiles: [u8; 2], player_b_worker_tiles: [u8; 2], player_a_turn: bool) -> f32 {
+    pub fn get_static_evaluation_old(tile_heights: [u8; 25], player_a_worker_tiles: [u8; 2], player_b_worker_tiles: [u8; 2], _player_a_turn: bool) -> f32 {
         if player_b_worker_tiles[0] == 25 {
             // TODO: Consider unplaced workers better
             // Unplaced workers

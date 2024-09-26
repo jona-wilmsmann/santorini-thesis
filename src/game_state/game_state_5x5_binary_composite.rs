@@ -3,7 +3,6 @@ use std::fmt::Formatter;
 use crate::game_state::{GameState, MinimaxReady};
 use crate::game_state::utils::static_evaluation::gs5x5_static_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
-use crate::minimax::minimax_cache::MinimaxCache;
 
 /*
 Heights:
@@ -372,24 +371,6 @@ impl GameState for GameState5x5BinaryComposite {
 }
 
 impl MinimaxReady for GameState5x5BinaryComposite {
-    fn sort_children_states(children_states: &mut Vec<Self>, maximizing: bool, depth: usize, _cache: &mut MinimaxCache<Self>) {
-        if children_states.is_empty() {
-            return;
-        }
-        if depth > 2 {
-            // Create a vector of tuples with the static evaluation and the GameState
-            let mut children_evaluations: Vec<(f32, &mut Self)> = children_states.into_iter().map(|state| (state.get_static_evaluation(), state)).collect();
-            // Sort the vector by the static evaluation
-            if maximizing {
-                children_evaluations.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
-            } else {
-                children_evaluations.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-            }
-            // Replace the children_states vector with the sorted vector
-            *children_states = children_evaluations.iter().map(|(_, state)| **state).collect();
-        }
-    }
-
     fn get_static_evaluation(&self) -> f32 {
         if self.has_player_a_won() {
             return f32::MAX;
@@ -399,5 +380,9 @@ impl MinimaxReady for GameState5x5BinaryComposite {
 
         let (tile_heights, player_a_workers, player_b_workers) = self.get_heights_and_workers();
         return gs5x5_static_evaluation::get_static_evaluation(tile_heights, player_a_workers, player_b_workers, self.is_player_a_turn());
+    }
+
+    fn get_child_evaluation(&self) -> f32 {
+        return self.get_static_evaluation();
     }
 }

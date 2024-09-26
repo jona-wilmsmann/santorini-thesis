@@ -12,7 +12,7 @@ pub struct BitWriter<const BITS_PER_ENTRY: usize> {
 }
 
 impl<const BITS_PER_ENTRY: usize> BitWriter<BITS_PER_ENTRY> {
-    const VALID_BIT_COUNT_ASSERTION: () = assert_valid_bit_count(BITS_PER_ENTRY);
+    const _VALID_BIT_COUNT_ASSERTION: () = assert_valid_bit_count(BITS_PER_ENTRY);
 
     pub async fn new(file_path: String) -> Result<Self> {
         let file = File::create(file_path).await?;

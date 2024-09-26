@@ -4,7 +4,6 @@ use rand::SeedableRng;
 use tokio::sync::Mutex;
 use crate::game_state::GameState;
 use crate::generic_game_state::GenericGameState;
-use crate::minimax::simple_minimax;
 use crate::stats::utils::draw_minimax_benchmark::{AverageMinimaxMeasurement, MinimaxMeasurement};
 
 pub async fn gather_minimax_benchmark<GS: GameState + 'static>(
@@ -19,7 +18,7 @@ pub async fn gather_minimax_benchmark<GS: GameState + 'static>(
 
     let mut rng = rand::rngs::StdRng::seed_from_u64(0);
     let random_states: Vec<GS> = (0..number_of_game_states)
-        .map(|_| GS::from_generic_game_state(&GS::GenericGameState::generate_random_state_with_blocks_rng(&mut rng, block_count))).collect();
+        .map(|_| GS::from_generic_game_state(&GenericGameState::generate_random_state_with_blocks_rng(&mut rng, block_count))).collect();
 
     let mut tasks = Vec::with_capacity(number_of_game_states);
     let states_progress = Arc::new(Mutex::new(0));

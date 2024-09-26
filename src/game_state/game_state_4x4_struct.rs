@@ -3,7 +3,6 @@ use std::fmt::Formatter;
 use crate::game_state::{GameState, MinimaxReady};
 use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
-use crate::minimax::minimax_cache::MinimaxCache;
 
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 pub struct GameState4x4Struct {
@@ -230,22 +229,11 @@ impl GameState for GameState4x4Struct {
 }
 
 impl MinimaxReady for GameState4x4Struct {
-    fn sort_children_states(children_states: &mut Vec<Self>, maximizing: bool, depth: usize, _cache: &mut MinimaxCache<Self>) {
-        if depth > 2 {
-            // Create a vector of tuples with the static evaluation and the GameState
-            let mut children_evaluations: Vec<(Self, f32)> = children_states.iter().map(|state| (state.clone(), state.get_static_evaluation())).collect();
-            // Sort the vector by the static evaluation
-            if maximizing {
-                children_evaluations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-            } else {
-                children_evaluations.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-            }
-            // Replace the children_states vector with the sorted vector
-            *children_states = children_evaluations.iter().map(|(state, _)| state.clone()).collect();
-        }
-    }
-
     fn get_static_evaluation(&self) -> f32 {
         return gs4x4_static_evaluation::get_static_evaluation(self.tile_heights, self.player_a_worker, self.player_b_worker, self.player_a_turn);
+    }
+
+    fn get_child_evaluation(&self) -> f32 {
+        return self.get_static_evaluation();
     }
 }

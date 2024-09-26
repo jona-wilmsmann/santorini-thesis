@@ -10,21 +10,18 @@ pub struct Bounds {
     pub beta: f32,
 }
 
-pub struct MinimaxCache<GS: GameState> {
-    pub evaluated_states: usize,
-    pub pruned_states: usize,
-    pub valuation_bounds: [FnvHashMap<GS, Bounds>; 63],
+pub struct MinimaxCache<GS: GameState, const DEPTH_COUNT: usize> {
+    pub valuation_bounds: [FnvHashMap<GS, Bounds>; DEPTH_COUNT],
 }
 
-impl<GS: GameState> MinimaxCache<GS> {
-    pub fn new() -> MinimaxCache<GS> {
+impl<GS: GameState, const DEPTH_COUNT: usize> MinimaxCache<GS, DEPTH_COUNT> {
+    pub fn new() -> MinimaxCache<GS, DEPTH_COUNT> {
         return MinimaxCache {
-            evaluated_states: 0,
-            pruned_states: 0,
             valuation_bounds: from_fn(|_| FnvHashMap::default()),
         };
     }
 
+    #[inline(always)]
     pub fn get_valuation_bounds(&self, depth: usize, game_state: &GS) -> Option<&Bounds> {
         return self.valuation_bounds[depth].get(game_state);
     }

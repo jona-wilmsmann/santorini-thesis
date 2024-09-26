@@ -1,8 +1,6 @@
 // Necessary for precomputing values for static evaluation
 #![feature(const_fn_floating_point_arithmetic)]
 
-use std::env;
-use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use santorini_minimax::stats::{StatGenerator};
 use anyhow::Result;
@@ -11,11 +9,12 @@ use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::game_state::{GameState, MinimaxReady};
 use santorini_minimax::generic_game_state::GenericGameState;
-use santorini_minimax::minimax::{alpha_beta_sorted_minimax, minimax};
-use santorini_minimax::minimax::minimax_cache::MinimaxCache;
+use santorini_minimax::minimax::{alpha_beta_sorted_minimax};
 use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
+use santorini_minimax::stats::benchmark_minimax_cached::BenchmarkMinimaxCached;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
 use santorini_minimax::stats::benchmark_minimax_sorted::BenchmarkMinimaxSorted;
+use santorini_minimax::stats::utils::formatters::ns_formatter;
 
 /*
 fn measure_minimax_and_log_moves<GS: GameState + MinimaxReady + SimplifiedState>(game_state: &GS, depth: usize) {
@@ -59,7 +58,7 @@ async fn average_branching_factor<GS: GameState + MinimaxReady + 'static>(number
     for (i, state) in random_states.iter().enumerate() {
         let state_copy = state.clone();
         tasks.push(tokio::spawn(async move {
-            let result = alpha_beta_sorted_minimax(&state_copy, depth);
+            let result = alpha_beta_sorted_minimax::<GS, 3>(&state_copy, depth);
             println!("State {}, evaluated states: {}", i, result.1);
             return result.1;
         }));
@@ -94,59 +93,78 @@ fn main() {
 async fn async_main() {
     type GS5x5 = GameState5x5BinaryComposite;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
-    let generic_game_state_5x5 = GGS5x5::new(
-        Some([11, 13]),
-        Some([6, 8]),
-        [
-            [0, 0, 1, 0, 0],
-            [0, 2, 1, 1, 0],
-            [1, 2, 2, 0, 0],
-            [0, 1, 4, 0, 1],
-            [0, 0, 1, 0, 1]
-        ],
-        true,
-    ).unwrap();
 
     let benchmark_minimax_simple_5x5 = BenchmarkMinimaxSimple::<GS5x5>::new(
-        "5x5 Santorini".to_string(),
+        "Santorini".to_string(),
         "5x5 Binary Composite".to_string(),
         "5x5_binary_composite".to_string(),
-        5,
+        6,
         1000,
-        20
+        20,
     );
-    //benchmark_minimax_simple_5x5.gather_and_store_data().await.unwrap();
-    benchmark_minimax_simple_5x5.generate_graph_from_most_recent_data().unwrap();
+    benchmark_minimax_simple_5x5.gather_and_store_data().await.unwrap();
+    //benchmark_minimax_simple_5x5.generate_graph_from_most_recent_data().unwrap();
 
 
     let benchmark_minimax_alpha_beta_5x5 = BenchmarkMinimaxAlphaBeta::new(
-        "5x5 Santorini".to_string(),
+        "Santorini".to_string(),
         "5x5 Binary Composite".to_string(),
         "5x5_binary_composite".to_string(),
         8,
         1000,
         20,
-        benchmark_minimax_simple_5x5
+        benchmark_minimax_simple_5x5,
     );
-    //benchmark_minimax_alpha_beta_5x5.gather_and_store_data().await.unwrap();
+    benchmark_minimax_alpha_beta_5x5.gather_and_store_data().await.unwrap();
     //benchmark_minimax_alpha_beta_5x5.generate_graph_from_most_recent_data().unwrap();
 
+    //let most_recent_data = benchmark_minimax_alpha_beta_5x5.get_most_recent_data_file().unwrap();
+    //let data = benchmark_minimax_alpha_beta_5x5.get_data(&most_recent_data).unwrap();
+    //let max_exec_time = data.raw_measurements_alpha_beta.iter().map(|m| m.iter().map(|m| m.computation_time.as_nanos()).max().unwrap()).max().unwrap();
+    //println!("Max exec time: {}", max_exec_time);
 
-    /*
-    let benchmark_minimax_sorted_5x5 = BenchmarkMinimaxSorted::new(
-        "5x5 Santorini".to_string(),
+
+    let benchmark_minimax_sorted_5x5_always_sort  = BenchmarkMinimaxSorted::<GS5x5, 0>::new(
+        "Santorini".to_string(),
         "5x5 Binary Composite".to_string(),
         "5x5_binary_composite".to_string(),
-        14,
-        GS5x5::from_generic_game_state(&generic_game_state_5x5),
-        benchmark_minimax_alpha_beta_5x5
+        10,
+        1000,
+        20,
+        benchmark_minimax_alpha_beta_5x5.clone(),
     );
-    //benchmark_minimax_sorted_5x5.gather_and_store_data().unwrap();
+    benchmark_minimax_sorted_5x5_always_sort.gather_and_store_data().await.unwrap();
+    //benchmark_minimax_sorted_5x5_always_sort.generate_graph_from_most_recent_data().unwrap();
+
+
+    let benchmark_minimax_sorted_5x5 = BenchmarkMinimaxSorted::<GS5x5, 3>::new(
+        "Santorini".to_string(),
+        "5x5 Binary Composite".to_string(),
+        "5x5_binary_composite".to_string(),
+        11,
+        1000,
+        20,
+        benchmark_minimax_alpha_beta_5x5,
+    );
+    benchmark_minimax_sorted_5x5.gather_and_store_data().await.unwrap();
     //benchmark_minimax_sorted_5x5.generate_graph_from_most_recent_data().unwrap();
 
-    let _ = average_branching_factor::<GS5x5>(1000, 20, 6).await;
 
-     */
+    let benchmark_minimax_cached_5x5 = BenchmarkMinimaxCached::<GS5x5, 3, 3, 3>::new(
+        "Santorini".to_string(),
+        "5x5 Binary Composite".to_string(),
+        "5x5_binary_composite".to_string(),
+        11,
+        1000,
+        20,
+        benchmark_minimax_sorted_5x5,
+    );
+    benchmark_minimax_cached_5x5.gather_and_store_data().await.unwrap();
+    //benchmark_minimax_cached_5x5.generate_graph_from_most_recent_data().unwrap();
+
+
+
+    //let _ = average_branching_factor::<GS5x5>(1000, 20, 6).await;
 
     /*
     type GS5x5 = GameState5x5Struct;

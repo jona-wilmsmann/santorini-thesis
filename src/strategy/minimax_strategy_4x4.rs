@@ -7,14 +7,15 @@ use crate::strategy::Strategy;
 
 pub struct MinimaxStrategy4x4 {
     max_depth: usize,
-    minimax_cache: MinimaxCache<GameState4x4Binary3Bit>
+    minimax_cache: MinimaxCache<GameState4x4Binary3Bit, 100>
 }
 
 impl MinimaxStrategy4x4 {
     pub fn new(max_depth: usize) -> MinimaxStrategy4x4 {
+        assert!(max_depth < 100);
         MinimaxStrategy4x4 {
             max_depth,
-            minimax_cache: MinimaxCache::<GameState4x4Binary3Bit>::new()
+            minimax_cache: MinimaxCache::<GameState4x4Binary3Bit, 100>::new()
         }
     }
 }
@@ -41,6 +42,6 @@ impl Strategy for MinimaxStrategy4x4 {
     }
 
     fn clear_cache(&mut self) {
-        self.minimax_cache = MinimaxCache::<GameState4x4Binary3Bit>::new();
+        self.minimax_cache = MinimaxCache::<GameState4x4Binary3Bit, 100>::new();
     }
 }

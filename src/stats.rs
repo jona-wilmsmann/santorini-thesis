@@ -17,10 +17,10 @@ pub trait StatGenerator {
     fn store_data(&self, data: Self::DataType) -> Result<String> {
         let data_folder = format!("{}/data/{}", Self::get_stats_folder(), self.get_stat_name());
         std::fs::create_dir_all(data_folder.clone())?;
-        let file_name = format!("{}.json", chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
+        let file_name = format!("{}.json5", chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
         let file_path = format!("{}/{}", data_folder, file_name);
 
-        let data = serde_json::to_string(&data)?;
+        let data = json5::to_string(&data)?;
         std::fs::write(file_path.clone(), data)?;
 
         return Ok(file_name);
@@ -28,7 +28,7 @@ pub trait StatGenerator {
 
     fn get_data(&self, file_name: &str) -> Result<Self::DataType> {
         let data = std::fs::read_to_string(format!("{}/data/{}/{}", Self::get_stats_folder(), self.get_stat_name(), file_name))?;
-        let data: Self::DataType = serde_json::from_str(&data)?;
+        let data: Self::DataType = json5::from_str(&data)?;
         return Ok(data);
     }
 
@@ -79,4 +79,5 @@ pub mod branching_factor_by_block_count;
 pub mod benchmark_minimax_simple;
 pub mod benchmark_minimax_alpha_beta;
 pub mod benchmark_minimax_sorted;
+pub mod benchmark_minimax_cached;
 pub mod utils;
