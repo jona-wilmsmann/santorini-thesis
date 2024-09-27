@@ -236,6 +236,7 @@ fn internal_cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT
     let mut reusable_vec_for_children = Vec::with_capacity(32);
 
     if maximizing_player {
+        let original_alpha = alpha;
         let mut max_evaluation = f32::NEG_INFINITY;
 
         if depth >= MIN_DEPTH_TO_CACHE {
@@ -243,15 +244,13 @@ fn internal_cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT
                 if cached_value.alpha <= alpha && cached_value.beta >= beta {
                     return cached_value.value;
                 }
-                if cached_value.value >= beta {
-                    return cached_value.value;
-                }
 
-                if cached_value.beta <= beta {
-                    if cached_value.value > alpha {
-                        alpha = cached_value.value;
-                        max_evaluation = alpha;
+                if cached_value.beta <= beta && cached_value.value > alpha {
+                    if cached_value.value >= beta {
+                        return cached_value.value;
                     }
+                    alpha = cached_value.value;
+                    max_evaluation = alpha;
                 }
             }
         }
@@ -277,10 +276,12 @@ fn internal_cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT
         }
 
         if depth >= MIN_DEPTH_TO_CACHE {
-            cache.insert_valuation_bounds(depth, *game_state, Bounds { value: max_evaluation, alpha, beta });
+            cache.insert_valuation_bounds(depth, *game_state, Bounds { value: max_evaluation, alpha: original_alpha, beta });
         }
         return max_evaluation;
+
     } else {
+        let original_beta = beta;
         let mut min_evaluation = f32::INFINITY;
 
         if depth >= MIN_DEPTH_TO_CACHE {
@@ -288,15 +289,13 @@ fn internal_cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT
                 if cached_value.alpha <= alpha && cached_value.beta >= beta {
                     return cached_value.value;
                 }
-                if cached_value.value <= alpha {
-                    return cached_value.value;
-                }
 
-                if cached_value.alpha >= alpha {
-                    if cached_value.value < beta {
-                        beta = cached_value.value;
-                        min_evaluation = beta;
+                if cached_value.alpha >= alpha && cached_value.value < beta {
+                    if cached_value.value <= alpha {
+                        return cached_value.value;
                     }
+                    beta = cached_value.value;
+                    min_evaluation = beta;
                 }
             }
         }
@@ -322,7 +321,7 @@ fn internal_cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT
         }
 
         if depth >= MIN_DEPTH_TO_CACHE {
-            cache.insert_valuation_bounds(depth, *game_state, Bounds { value: min_evaluation, alpha, beta });
+            cache.insert_valuation_bounds(depth, *game_state, Bounds { value: min_evaluation, alpha, beta: original_beta });
         }
         return min_evaluation;
     }

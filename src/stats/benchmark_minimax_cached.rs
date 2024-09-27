@@ -1,7 +1,7 @@
 use std::env;
 use serde::{Deserialize, Serialize};
 use plotters::prelude::*;
-use plotters::prelude::full_palette::DEEPPURPLE;
+use plotters::prelude::full_palette::{DEEPPURPLE, GREEN_900};
 use crate::game_state::{GameState, MinimaxReady};
 use crate::minimax::{alpha_beta_sorted_minimax, cached_minimax};
 use crate::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
@@ -95,10 +95,16 @@ impl<
         let sorted_data = self.sorted_benchmark.get_data(&sorted_data_file)?;
         assert_eq!(sorted_data.cpu_name, data.cpu_name);
 
+        let sorted_name = if SORTED_MIN_DEPTH_TO_SORT == 0 {
+            "Sorted Alpha-Beta Minimax".to_string()
+        } else {
+            format!("Sorted (d > {}) Alpha-Beta Minimax", SORTED_MIN_DEPTH_TO_SORT - 1)
+        };
+
         let sorted_data = MinimaxBenchmarkData {
-            label: "Sorted Alpha-Beta Minimax".to_string(),
+            label: sorted_name,
             cpu_name: sorted_data.cpu_name,
-            color: RED,
+            color: GREEN_900,
             draw_execution_time_text: false,
             draw_game_states_text: false,
             average_measurements: sorted_data.average_measurements_sorted,
@@ -106,9 +112,9 @@ impl<
         };
 
         let cached_data = MinimaxBenchmarkData {
-            label: "Cached Sorted Alpha-Beta Minimax".to_string(),
+            label: "Cached Alpha-Beta Minimax".to_string(),
             cpu_name: data.cpu_name,
-            color: BLUE,
+            color: DEEPPURPLE,
             draw_execution_time_text: true,
             draw_game_states_text: true,
             average_measurements: data.average_measurements_cached,
@@ -117,7 +123,7 @@ impl<
 
         return draw_minimax_benchmark(
             graph_path,
-            format!("Cached Sorted Alpha-Beta Minimax - {} Benchmark", self.game_name),
+            format!("Cached Alpha-Beta Minimax - {} Benchmark", self.game_name),
             self.game_state_name.clone(),
             self.block_count,
             vec![sorted_data, cached_data]

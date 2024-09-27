@@ -1,4 +1,5 @@
 use std::env;
+use std::fmt::format;
 use serde::{Deserialize, Serialize};
 use plotters::prelude::*;
 use plotters::prelude::full_palette::GREEN_900;
@@ -84,18 +85,10 @@ impl<GS: GameState + MinimaxReady + 'static, const MIN_DEPTH_TO_SORT: usize> Sta
         let alpha_beta_data = self.alpha_beta_benchmark.get_data(&alpha_beta_data_file)?;
         assert_eq!(alpha_beta_data.cpu_name, data.cpu_name);
 
-        let simple_data_file = self.alpha_beta_benchmark.simple_benchmark.get_most_recent_data_file()?;
-        let simple_data = self.alpha_beta_benchmark.simple_benchmark.get_data(&simple_data_file)?;
-        assert_eq!(simple_data.cpu_name, data.cpu_name);
-
-        let simple_data = MinimaxBenchmarkData {
-            label: "Simple Minimax".to_string(),
-            cpu_name: simple_data.cpu_name,
-            color: BLUE,
-            draw_execution_time_text: false,
-            draw_game_states_text: false,
-            average_measurements: simple_data.average_measurements_simple,
-            raw_measurements: simple_data.raw_measurements_simple,
+        let sorted_name = if MIN_DEPTH_TO_SORT == 0 {
+            "Sorted Alpha-Beta Minimax".to_string()
+        } else {
+            format!("Sorted (d > {}) Alpha-Beta Minimax", MIN_DEPTH_TO_SORT - 1)
         };
 
         let alpha_beta_data = MinimaxBenchmarkData {
@@ -109,7 +102,7 @@ impl<GS: GameState + MinimaxReady + 'static, const MIN_DEPTH_TO_SORT: usize> Sta
         };
 
         let sorted_data = MinimaxBenchmarkData {
-            label: "Sorted Alpha-Beta Minimax".to_string(),
+            label: sorted_name.clone(),
             cpu_name: data.cpu_name,
             color: GREEN_900,
             draw_execution_time_text: true,
@@ -120,7 +113,7 @@ impl<GS: GameState + MinimaxReady + 'static, const MIN_DEPTH_TO_SORT: usize> Sta
 
         return draw_minimax_benchmark(
             graph_path,
-            format!("Sorted Alpha-Beta Minimax - {} Benchmark", self.game_name),
+            format!("{} - {} Benchmark", sorted_name, self.game_name),
             self.game_state_name.clone(),
             self.block_count,
             vec![alpha_beta_data, sorted_data]

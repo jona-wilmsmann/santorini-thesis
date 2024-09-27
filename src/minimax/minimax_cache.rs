@@ -34,15 +34,10 @@ impl<GS: GameState, const DEPTH_COUNT: usize> MinimaxCache<GS, DEPTH_COUNT> {
         match entry {
             Occupied(mut occupied_entry) => {
                 let current_bounds = occupied_entry.get_mut();
-                if bounds.value > current_bounds.value {
+
+                if (bounds.alpha < current_bounds.alpha && bounds.beta >= current_bounds.beta) || (bounds.alpha <= current_bounds.alpha && bounds.beta > current_bounds.beta) {
+                    // Larger bounds always give more information
                     *current_bounds = bounds;
-                } else if bounds.value == current_bounds.value {
-                    if bounds.alpha > current_bounds.alpha && bounds.beta <= current_bounds.beta {
-                        current_bounds.alpha = bounds.alpha;
-                    }
-                    if bounds.beta < current_bounds.beta && bounds.alpha >= current_bounds.alpha {
-                        current_bounds.beta = bounds.beta;
-                    }
                 }
             },
             Vacant(vacant_entry) => {

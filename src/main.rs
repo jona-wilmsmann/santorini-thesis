@@ -9,7 +9,7 @@ use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::game_state::{GameState, MinimaxReady};
 use santorini_minimax::generic_game_state::GenericGameState;
-use santorini_minimax::minimax::{alpha_beta_sorted_minimax};
+use santorini_minimax::minimax::{alpha_beta_sorted_minimax, cached_minimax};
 use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
 use santorini_minimax::stats::benchmark_minimax_cached::BenchmarkMinimaxCached;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
@@ -94,6 +94,33 @@ async fn async_main() {
     type GS5x5 = GameState5x5BinaryComposite;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
 
+    /*
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+    let random_states: Vec<GS5x5> = (0..100000)
+        .map(|_| GS5x5::from_generic_game_state(&GenericGameState::generate_random_state_with_blocks_rng(&mut rng, 20))).collect();
+
+    let mut tasks = Vec::new();
+
+    for (i, state) in random_states.iter().enumerate() {
+        for depth in 4..=8 {
+            let state_copy = state.clone();
+            tasks.push(tokio::spawn(async move {
+                let sorted_result = alpha_beta_sorted_minimax::<GS5x5, 3>(&state_copy, depth);
+                let cached_result = cached_minimax::<GS5x5, 3, 3>(&state_copy, depth);
+                if sorted_result.0 != cached_result.0 {
+                    println!("Mismatch at state {}, depth {}: sorted: {}, cached: {}", i, depth, sorted_result.0, cached_result.0);
+                }
+            }));
+        }
+    }
+    for task in tasks {
+        task.await.unwrap();
+    }
+    return;
+
+     */
+
+
     let benchmark_minimax_simple_5x5 = BenchmarkMinimaxSimple::<GS5x5>::new(
         "Santorini".to_string(),
         "5x5 Binary Composite".to_string(),
@@ -102,8 +129,8 @@ async fn async_main() {
         1000,
         20,
     );
-    benchmark_minimax_simple_5x5.gather_and_store_data().await.unwrap();
-    //benchmark_minimax_simple_5x5.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_simple_5x5.gather_and_store_data().await.unwrap();
+    benchmark_minimax_simple_5x5.generate_graph_from_most_recent_data().unwrap();
 
 
     let benchmark_minimax_alpha_beta_5x5 = BenchmarkMinimaxAlphaBeta::new(
@@ -115,8 +142,8 @@ async fn async_main() {
         20,
         benchmark_minimax_simple_5x5,
     );
-    benchmark_minimax_alpha_beta_5x5.gather_and_store_data().await.unwrap();
-    //benchmark_minimax_alpha_beta_5x5.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_alpha_beta_5x5.gather_and_store_data().await.unwrap();
+    benchmark_minimax_alpha_beta_5x5.generate_graph_from_most_recent_data().unwrap();
 
     //let most_recent_data = benchmark_minimax_alpha_beta_5x5.get_most_recent_data_file().unwrap();
     //let data = benchmark_minimax_alpha_beta_5x5.get_data(&most_recent_data).unwrap();
@@ -133,8 +160,8 @@ async fn async_main() {
         20,
         benchmark_minimax_alpha_beta_5x5.clone(),
     );
-    benchmark_minimax_sorted_5x5_always_sort.gather_and_store_data().await.unwrap();
-    //benchmark_minimax_sorted_5x5_always_sort.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_sorted_5x5_always_sort.gather_and_store_data().await.unwrap();
+    benchmark_minimax_sorted_5x5_always_sort.generate_graph_from_most_recent_data().unwrap();
 
 
     let benchmark_minimax_sorted_5x5 = BenchmarkMinimaxSorted::<GS5x5, 3>::new(
@@ -146,8 +173,8 @@ async fn async_main() {
         20,
         benchmark_minimax_alpha_beta_5x5,
     );
-    benchmark_minimax_sorted_5x5.gather_and_store_data().await.unwrap();
-    //benchmark_minimax_sorted_5x5.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_sorted_5x5.gather_and_store_data().await.unwrap();
+    benchmark_minimax_sorted_5x5.generate_graph_from_most_recent_data().unwrap();
 
 
     let benchmark_minimax_cached_5x5 = BenchmarkMinimaxCached::<GS5x5, 3, 3, 3>::new(
@@ -159,8 +186,8 @@ async fn async_main() {
         20,
         benchmark_minimax_sorted_5x5,
     );
-    benchmark_minimax_cached_5x5.gather_and_store_data().await.unwrap();
-    //benchmark_minimax_cached_5x5.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_cached_5x5.gather_and_store_data().await.unwrap();
+    benchmark_minimax_cached_5x5.generate_graph_from_most_recent_data().unwrap();
 
 
 
