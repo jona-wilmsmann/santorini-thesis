@@ -1,5 +1,4 @@
 use std::env;
-use std::fmt::format;
 use serde::{Deserialize, Serialize};
 use plotters::prelude::*;
 use plotters::prelude::full_palette::GREEN_900;

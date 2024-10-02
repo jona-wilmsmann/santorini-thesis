@@ -16,6 +16,7 @@ use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlph
 use santorini_minimax::stats::benchmark_minimax_cached::BenchmarkMinimaxCached;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
 use santorini_minimax::stats::benchmark_minimax_sorted::BenchmarkMinimaxSorted;
+use santorini_minimax::stats::minimax_solve_stats::MinimaxSolveStats;
 use santorini_minimax::stats::utils::formatters::ns_formatter;
 
 /*
@@ -96,30 +97,16 @@ async fn tokio_main() {
     type GS5x5 = GameState5x5BinaryComposite;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
 
-    let general_state = GGS5x5::new(
-        Some([6, 12]),
-        Some([7, 13]),
-        [
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-        ],
-        true,
-    ).unwrap();
-    let game_state = GS5x5::from_generic_game_state(&general_state);
+    let minimax_solve_stats_5x5 = MinimaxSolveStats::<GS5x5>::new(
+        "5x5 Binary Composite".to_string(),
+        "5x5_binary_composite".to_string(),
+        1..=8,
+        0..=92,
+        1000,
+    );
 
-    for depth in 1..=32 {
-        let start = std::time::Instant::now();
-        let result = parallel_minimax::<GS5x5, 3, 3>(game_state.clone(), depth).await;
-        let duration = start.elapsed();
-
-        println!("-------------------");
-        println!("Depth: {}", depth);
-        println!("Result: {}", result);
-        println!("Duration: {}s", duration.as_secs_f64());
-    }
+    //minimax_solve_stats_5x5.gather_and_store_data().await.unwrap();
+    minimax_solve_stats_5x5.generate_graph_from_most_recent_data().unwrap();
 
     return;
 

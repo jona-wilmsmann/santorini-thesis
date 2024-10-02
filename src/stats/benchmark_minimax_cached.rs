@@ -1,10 +1,8 @@
 use std::env;
 use serde::{Deserialize, Serialize};
-use plotters::prelude::*;
 use plotters::prelude::full_palette::{DEEPPURPLE, GREEN_900};
 use crate::game_state::{GameState, MinimaxReady};
-use crate::minimax::{alpha_beta_sorted_minimax, cached_minimax};
-use crate::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
+use crate::minimax::cached_minimax;
 use crate::stats::benchmark_minimax_sorted::BenchmarkMinimaxSorted;
 use crate::stats::StatGenerator;
 use crate::stats::utils::draw_minimax_benchmark::{AverageMinimaxMeasurement, draw_minimax_benchmark, MinimaxBenchmarkData, MinimaxMeasurement};

@@ -1,9 +1,7 @@
 pub mod minimax_cache;
 
-use std::sync::Arc;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use tokio::sync::RwLock;
 use crate::game_state::{GameState, MinimaxReady};
 use crate::minimax::minimax_cache::{Bounds, MinimaxCache};
 
@@ -420,7 +418,6 @@ async fn internal_parallel_minimax<GS: GameState + MinimaxReady + 'static, const
         }
 
         return max_evaluation;
-
     } else {
         let mut min_evaluation = f32::INFINITY;
 
@@ -479,128 +476,127 @@ pub async fn parallel_minimax<
 }
 
 
-pub fn minimax<GS: GameState + MinimaxReady>(game_state: &GS, depth: usize, mut alpha: f32, mut beta: f32, cache: &mut MinimaxCache<GS, 100>) -> f32 {
-    if depth == 0 {
-        return game_state.get_static_evaluation();
-    }
 
+fn internal_cached_minimax_no_count<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize>(
+    game_state: &GS,
+    maximizing_player: bool,
+    depth: usize,
+    mut alpha: f32,
+    mut beta: f32,
+    cache: &mut MinimaxCache<GS, 100>,
+    reused_children_vec: &mut Vec<GS>,
+) -> f32 {
     if game_state.has_player_a_won() {
-        return f32::MAX;
+        return f32::INFINITY;
     } else if game_state.has_player_b_won() {
-        return f32::MIN;
+        return f32::NEG_INFINITY;
     }
 
-
-    let mut children_states = game_state.get_children_states();
-    // TODO: This speeds things up for some states, but makes things slower for others. Think of ways to detect when to use it
-    //children_states = children_states.iter().map(|child| child.get_simplified_state()).collect();
-    if depth > 2 {
-        order_children_states(&mut children_states, game_state.is_player_a_turn());
+    if depth == 0 {
+        return 0.0;
     }
 
-    if children_states.len() == 0 {
-        return if game_state.is_player_a_turn() {
-            f32::MIN
-        } else {
-            f32::MAX
-        };
-    }
+    let mut reusable_vec_for_children = Vec::with_capacity(32);
 
-    /*
-    // TODO: Double check if this all makes sense and if there are any other possible cases to cover
-    if let Some(cached_value) = cache.get_valuation_bounds(depth, game_state) {
-        if cached_value.alpha <= alpha && cached_value.beta >= beta {
-            return cached_value.value;
-        }
-        if cached_value.value >= beta {
-            return cached_value.value;
-        }
-
-        if cached_value.beta <= beta {
-            if cached_value.value > alpha {
-                alpha = cached_value.value;
-                max_evaluation = alpha;
-            }
-        }
-    }
-
-     */
-
-
-    let mut evaluated_children = 0;
-    if game_state.is_player_a_turn() {
-        // Player A is maximizing
+    if maximizing_player {
+        let original_alpha = alpha;
         let mut max_evaluation = f32::NEG_INFINITY;
 
-        if let Some(cached_value) = cache.get_valuation_bounds(depth, game_state) {
-            if cached_value.alpha <= alpha && cached_value.beta >= beta {
-                return cached_value.value;
-            }
-            if cached_value.value >= beta {
-                return cached_value.value;
-            }
+        if depth >= MIN_DEPTH_TO_CACHE {
+            if let Some(cached_value) = cache.get_valuation_bounds(depth, game_state) {
+                if cached_value.alpha <= alpha && cached_value.beta >= beta {
+                    return cached_value.value;
+                }
 
-            if cached_value.beta <= beta {
-                if cached_value.value > alpha {
+                if cached_value.beta <= beta && cached_value.value > alpha {
+                    if cached_value.value >= beta {
+                        return cached_value.value;
+                    }
                     alpha = cached_value.value;
                     max_evaluation = alpha;
                 }
             }
         }
 
-        for child in &children_states {
-            evaluated_children += 1;
-            let evaluation = minimax(child, depth - 1, alpha, beta, cache);
-            if evaluation > max_evaluation {
-                max_evaluation = evaluation;
-            }
-            if evaluation > alpha {
-                alpha = evaluation;
-            }
-            if beta <= alpha {
-                break;
+        game_state.get_children_states_reuse_vec(reused_children_vec);
+        if !reused_children_vec.is_empty() {
+            if depth >= MIN_DEPTH_TO_SORT {
+                order_children_states(reused_children_vec, maximizing_player);
             }
         }
 
-        cache.insert_valuation_bounds(depth, game_state.clone(), Bounds { value: max_evaluation, alpha, beta });
+        for child in reused_children_vec {
+            let evaluation = internal_cached_minimax_no_count::<GS, MIN_DEPTH_TO_SORT, MIN_DEPTH_TO_CACHE>(child, false, depth - 1, alpha, beta, cache, &mut reusable_vec_for_children);
+            if evaluation > max_evaluation {
+                max_evaluation = evaluation;
+                if max_evaluation >= beta {
+                    break;
+                }
+                if max_evaluation > alpha {
+                    alpha = max_evaluation;
+                }
+            }
+        }
 
+        if depth >= MIN_DEPTH_TO_CACHE {
+            cache.insert_valuation_bounds(depth, *game_state, Bounds { value: max_evaluation, alpha: original_alpha, beta });
+        }
         return max_evaluation;
     } else {
-        // Player B is minimizing
+        let original_beta = beta;
         let mut min_evaluation = f32::INFINITY;
 
-        if let Some(cached_value) = cache.get_valuation_bounds(depth, game_state) {
-            if cached_value.alpha <= alpha && cached_value.beta >= beta {
-                return cached_value.value;
-            }
-            if cached_value.value <= alpha {
-                return cached_value.value;
-            }
+        if depth >= MIN_DEPTH_TO_CACHE {
+            if let Some(cached_value) = cache.get_valuation_bounds(depth, game_state) {
+                if cached_value.alpha <= alpha && cached_value.beta >= beta {
+                    return cached_value.value;
+                }
 
-            if cached_value.alpha >= alpha {
-                if cached_value.value < beta {
+                if cached_value.alpha >= alpha && cached_value.value < beta {
+                    if cached_value.value <= alpha {
+                        return cached_value.value;
+                    }
                     beta = cached_value.value;
                     min_evaluation = beta;
                 }
             }
         }
 
-        for child in &children_states {
-            evaluated_children += 1;
-            let evaluation = minimax(child, depth - 1, alpha, beta, cache);
-            if evaluation < min_evaluation {
-                min_evaluation = evaluation;
-            }
-            if evaluation < beta {
-                beta = evaluation;
-            }
-            if beta <= alpha {
-                break;
+        game_state.get_children_states_reuse_vec(reused_children_vec);
+        if !reused_children_vec.is_empty() {
+            if depth >= MIN_DEPTH_TO_SORT {
+                order_children_states(reused_children_vec, maximizing_player);
             }
         }
 
-        cache.insert_valuation_bounds(depth, game_state.clone(), Bounds { value: min_evaluation, alpha, beta });
+        for child in reused_children_vec {
+            let evaluation = internal_cached_minimax_no_count::<GS, MIN_DEPTH_TO_SORT, MIN_DEPTH_TO_CACHE>(child, true, depth - 1, alpha, beta, cache, &mut reusable_vec_for_children);
+            if evaluation < min_evaluation {
+                min_evaluation = evaluation;
+                if min_evaluation <= alpha {
+                    break;
+                }
+                if min_evaluation < beta {
+                    beta = min_evaluation;
+                }
+            }
+        }
 
+        if depth >= MIN_DEPTH_TO_CACHE {
+            cache.insert_valuation_bounds(depth, *game_state, Bounds { value: min_evaluation, alpha, beta: original_beta });
+        }
         return min_evaluation;
     }
+}
+
+pub fn minimax<GS: GameState + MinimaxReady>(game_state: &GS, depth: usize, alpha: f32, beta: f32, cache: &mut MinimaxCache<GS, 100>) -> f32 {
+    return internal_cached_minimax_no_count::<GS, 3, 3>(
+        game_state,
+        game_state.is_player_a_turn(),
+        depth,
+        alpha,
+        beta,
+        cache,
+        &mut Vec::with_capacity(32),
+    );
 }

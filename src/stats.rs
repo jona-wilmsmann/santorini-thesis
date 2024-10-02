@@ -80,4 +80,5 @@ pub mod benchmark_minimax_simple;
 pub mod benchmark_minimax_alpha_beta;
 pub mod benchmark_minimax_sorted;
 pub mod benchmark_minimax_cached;
+pub mod minimax_solve_stats;
 pub mod utils;
