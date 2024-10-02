@@ -1,22 +1,25 @@
 // Necessary for precomputing values for static evaluation
 #![feature(const_fn_floating_point_arithmetic)]
 
+use std::env;
 use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use santorini_minimax::stats::{StatGenerator};
 use anyhow::Result;
 use rand::SeedableRng;
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, MinimaxReady, SimplifiedState};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::generic_game_state::GenericGameState;
 use santorini_minimax::minimax::{alpha_beta_sorted_minimax, cached_minimax, parallel_minimax};
-use santorini_minimax::precompute_state_winner::presolve_state_winner;
 use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
 use santorini_minimax::stats::benchmark_minimax_cached::BenchmarkMinimaxCached;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
 use santorini_minimax::stats::benchmark_minimax_sorted::BenchmarkMinimaxSorted;
 use santorini_minimax::stats::minimax_solve_stats::MinimaxSolveStats;
+use santorini_minimax::stats::presolve_analysis::PresolveAnalysis;
 use santorini_minimax::stats::utils::formatters::ns_formatter;
 
 /*
@@ -96,23 +99,16 @@ fn main() {
 async fn tokio_main() {
     type GS5x5 = GameState5x5BinaryComposite;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
+    type GS4x4 = GameState4x4Binary3Bit;
 
-    let minimax_solve_stats_5x5 = MinimaxSolveStats::<GS5x5>::new(
-        "5x5 Binary Composite".to_string(),
-        "5x5_binary_composite".to_string(),
-        1..=8,
-        0..=92,
-        1000,
-    );
-
-    //minimax_solve_stats_5x5.gather_and_store_data().await.unwrap();
-    minimax_solve_stats_5x5.generate_graph_from_most_recent_data().unwrap();
+    let presolve_analysis = PresolveAnalysis::new();
+    //presolve_analysis.gather_and_store_data().await.unwrap();
+    presolve_analysis.generate_graph_from_most_recent_data().unwrap();
 
     return;
 
 
     /*
-    type GS4x4 = GameState4x4Binary3Bit;
 
     let available_threads = std::thread::available_parallelism().expect("Could not get number of threads").get();
     for block_count in (0..=60).rev() {
@@ -249,6 +245,20 @@ async fn tokio_main() {
     );
     //benchmark_minimax_cached_5x5.gather_and_store_data().await.unwrap();
     //benchmark_minimax_cached_5x5.generate_graph_from_most_recent_data().unwrap();
+
+
+    let minimax_solve_stats_5x5 = MinimaxSolveStats::<GS5x5>::new(
+        "5x5 Binary Composite".to_string(),
+        "5x5_binary_composite".to_string(),
+        1..=8,
+        0..=92,
+        1000,
+    );
+
+    //minimax_solve_stats_5x5.gather_and_store_data().await.unwrap();
+    minimax_solve_stats_5x5.generate_graph_from_most_recent_data().unwrap();
+
+
 
 
     //let _ = average_branching_factor::<GS5x5>(1000, 20, 6).await;
