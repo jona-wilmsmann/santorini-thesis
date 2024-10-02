@@ -12,10 +12,9 @@ use crate::generic_game_state::GenericGameState;
 use crate::minimax::minimax;
 use crate::minimax::minimax_cache::MinimaxCache;
 use crate::stats::StatGenerator;
-use crate::stats::utils::formatters::{ns_formatter, value_formatter};
+use crate::stats::utils::formatters::ns_formatter;
 
-use plotters::prelude::*;
-use plotters::prelude::full_palette::{BROWN, ORANGE, PURPLE};
+use plotters::prelude::full_palette::{BROWN, GREEN_900, GREY, ORANGE, PURPLE, YELLOW_A400};
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 
 fn get_color(index: usize) -> RGBColor {
@@ -28,8 +27,9 @@ fn get_color(index: usize) -> RGBColor {
         5 => BROWN,
         6 => PURPLE,
         7 => ORANGE,
-        8 => BLACK,
-        9 => YELLOW,
+        8 => GREY,
+        9 => GREEN_900,
+        10 => YELLOW_A400,
         _ => BLACK, // Fallback in case index exceeds 9
     }
 }
@@ -196,7 +196,7 @@ impl<GS: GameState + MinimaxReady + 'static> StatGenerator for MinimaxSolveStats
         let time_root = SVGBackend::new(&time_graph_path, (width, height)).into_drawing_area();
         time_root.fill(&WHITE)?;
 
-        let log_duration_range = (0..1e10 as usize).log_scale();
+        let log_duration_range = (100..1e11 as usize).log_scale();
 
         let mut time_chart = ChartBuilder::on(&time_root)
             .margin(20)

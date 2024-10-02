@@ -101,12 +101,6 @@ async fn tokio_main() {
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
     type GS4x4 = GameState4x4Binary3Bit;
 
-    let presolve_analysis = PresolveAnalysis::new();
-    //presolve_analysis.gather_and_store_data().await.unwrap();
-    presolve_analysis.generate_graph_from_most_recent_data().unwrap();
-
-    return;
-
 
     /*
 
@@ -187,7 +181,7 @@ async fn tokio_main() {
         20,
     );
     //benchmark_minimax_simple_5x5.gather_and_store_data().await.unwrap();
-    benchmark_minimax_simple_5x5.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_simple_5x5.generate_graph_from_most_recent_data().unwrap();
 
 
     let benchmark_minimax_alpha_beta_5x5 = BenchmarkMinimaxAlphaBeta::new(
@@ -202,10 +196,12 @@ async fn tokio_main() {
     //benchmark_minimax_alpha_beta_5x5.gather_and_store_data().await.unwrap();
     //benchmark_minimax_alpha_beta_5x5.generate_graph_from_most_recent_data().unwrap();
 
+    /*
     let most_recent_data = benchmark_minimax_alpha_beta_5x5.get_most_recent_data_file().unwrap();
     let data = benchmark_minimax_alpha_beta_5x5.get_data(&most_recent_data).unwrap();
     let max_exec_time = data.raw_measurements_alpha_beta.iter().map(|m| m.iter().filter(|m| m.result.is_finite()).map(|m| m.computation_time.as_nanos()).max().unwrap()).max().unwrap();
     println!("Max exec time: {}", max_exec_time);
+     */
 
 
     let benchmark_minimax_sorted_5x5_always_sort = BenchmarkMinimaxSorted::<GS5x5, 0>::new(
@@ -231,7 +227,7 @@ async fn tokio_main() {
         benchmark_minimax_alpha_beta_5x5,
     );
     //benchmark_minimax_sorted_5x5.gather_and_store_data().await.unwrap();
-    benchmark_minimax_sorted_5x5.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_sorted_5x5.generate_graph_from_most_recent_data().unwrap();
 
 
     let benchmark_minimax_cached_5x5 = BenchmarkMinimaxCached::<GS5x5, 3, 3, 3>::new(
@@ -250,15 +246,29 @@ async fn tokio_main() {
     let minimax_solve_stats_5x5 = MinimaxSolveStats::<GS5x5>::new(
         "5x5 Binary Composite".to_string(),
         "5x5_binary_composite".to_string(),
-        1..=8,
+        1..=10,
         0..=92,
-        1000,
+        100,
     );
 
     //minimax_solve_stats_5x5.gather_and_store_data().await.unwrap();
-    minimax_solve_stats_5x5.generate_graph_from_most_recent_data().unwrap();
+    //minimax_solve_stats_5x5.generate_graph_from_most_recent_data().unwrap();
 
 
+    let minimax_solve_stats_4x4 = MinimaxSolveStats::<GS4x4>::new(
+        "4x4 Binary 3 Bit".to_string(),
+        "4x4_binary_3_bit".to_string(),
+        1..=12,
+        0..=60,
+        100,
+    );
+    //minimax_solve_stats_4x4.gather_and_store_data().await.unwrap();
+    minimax_solve_stats_4x4.generate_graph_from_most_recent_data().unwrap();
+
+
+    let presolve_analysis = PresolveAnalysis::new();
+    //presolve_analysis.gather_and_store_data().await.unwrap();
+    //presolve_analysis.generate_graph_from_most_recent_data().unwrap();
 
 
     //let _ = average_branching_factor::<GS5x5>(1000, 20, 6).await;

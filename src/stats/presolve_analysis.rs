@@ -1,13 +1,11 @@
 use std::env;
 use plotters::prelude::*;
-use plotters::prelude::full_palette::{BLUE_500, ORANGE, PURPLE, RED_300, RED_400, RED_500};
-use plotters::style::full_palette::BLUE_300;
+use plotters::prelude::full_palette::{BLUE_500, RED_400};
 use serde::{Deserialize, Serialize};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use crate::game_state::ContinuousBlockId;
 use crate::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
-use crate::game_state::utils::get_binomial_coefficient::calculate_binomial_coefficient;
 use crate::stats::StatGenerator;
 
 pub struct PresolveAnalysis {}
