@@ -1,3 +1,4 @@
+use std::env;
 use std::sync::{Arc, Mutex};
 use crate::game_state::{ContinuousBlockId, GameState, SimplifiedState};
 use anyhow::Result;
@@ -151,8 +152,10 @@ async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, 
 pub async fn presolve_state_winner<
     GS: GameState + SimplifiedState + ContinuousBlockId,
     const BITS_PER_ENTRY: usize,
->(block_count: usize, parallel_tasks: usize, data_folder_path: &str) -> Result<()> {
+>(block_count: usize, parallel_tasks: usize) -> Result<()> {
     assert!(BITS_PER_ENTRY == 1 || BITS_PER_ENTRY == 2);
+
+    let data_folder_path = env::var("WINNER_DATA_FOLDER").expect("WINNER_DATA_FOLDER must be set");
 
     let continuous_block_id_count = GS::get_continuous_block_id_count(block_count);
     let parent_continuous_block_id_count = GS::get_continuous_block_id_count(block_count + 1);

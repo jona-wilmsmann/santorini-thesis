@@ -274,7 +274,7 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
 
         // Draw white box behind text
         let text_background = Rectangle::new(
-            [(150, height as i32 - 45), (width as i32 - 150, height as i32 - 5)],
+            [(width as i32 / 2 - 110, height as i32 - 45), (width as i32 / 2 + 110, height as i32 - 5)],
             ShapeStyle {
                 color: RGBColor(255, 255, 255).to_rgba(),
                 filled: true,

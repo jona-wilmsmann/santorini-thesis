@@ -1,5 +1,9 @@
 pub mod minimax_cache;
 
+use std::sync::Arc;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
+use tokio::sync::RwLock;
 use crate::game_state::{GameState, MinimaxReady};
 use crate::minimax::minimax_cache::{Bounds, MinimaxCache};
 
@@ -206,7 +210,7 @@ pub fn alpha_beta_sorted_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_T
         f32::NEG_INFINITY,
         f32::INFINITY,
         &mut reused_children_vec,
-        &mut evaluated_states
+        &mut evaluated_states,
     );
     return (result, evaluated_states);
 }
@@ -344,6 +348,134 @@ pub fn cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT: usi
     );
 
     return (result, evaluated_states);
+}
+
+#[async_recursion::async_recursion]
+async fn internal_parallel_minimax<GS: GameState + MinimaxReady + 'static, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_PARALLELIZE: usize>(
+    game_state: GS,
+    maximizing_player: bool,
+    depth: usize,
+    mut alpha: f32,
+    mut beta: f32,
+) -> f32 {
+    if depth < MIN_DEPTH_TO_PARALLELIZE {
+        return alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(&game_state, maximizing_player, depth, alpha, beta, &mut Vec::with_capacity(32), &mut 0);
+    }
+
+    if game_state.has_player_a_won() {
+        return f32::INFINITY;
+    } else if game_state.has_player_b_won() {
+        return f32::NEG_INFINITY;
+    }
+
+    if depth == 0 {
+        return 0.0;
+    }
+
+    let mut children_states = game_state.get_children_states();
+    if children_states.is_empty() {
+        return if maximizing_player {
+            f32::NEG_INFINITY
+        } else {
+            f32::INFINITY
+        };
+    } else if depth >= MIN_DEPTH_TO_SORT {
+        order_children_states(&mut children_states, maximizing_player);
+    }
+
+    if maximizing_player {
+        let mut max_evaluation = f32::NEG_INFINITY;
+
+        let first_child = children_states.first().expect("It was just checked that the vector is not empty");
+        let first_evaluation = internal_parallel_minimax::<GS, MIN_DEPTH_TO_SORT, MIN_DEPTH_TO_PARALLELIZE>(*first_child, false, depth - 1, alpha, beta).await;
+        if first_evaluation > max_evaluation {
+            max_evaluation = first_evaluation;
+            if max_evaluation >= beta {
+                return max_evaluation;
+            }
+            if max_evaluation > alpha {
+                alpha = max_evaluation;
+            }
+        }
+
+        let mut tasks = FuturesUnordered::new();
+
+        for child in children_states.into_iter().skip(1) {
+            tasks.push(tokio::spawn(async move {
+                return alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(&child, false, depth - 1, alpha, beta, &mut Vec::with_capacity(32), &mut 0);
+            }));
+        }
+
+        while let Some(task) = tasks.next().await {
+            let evaluation = task.expect("Task failed");
+            if evaluation > max_evaluation {
+                max_evaluation = evaluation;
+                if max_evaluation >= beta {
+                    break;
+                }
+                if max_evaluation > alpha {
+                    alpha = max_evaluation;
+                }
+            }
+        }
+
+        return max_evaluation;
+
+    } else {
+        let mut min_evaluation = f32::INFINITY;
+
+        let first_child = children_states.first().expect("It was just checked that the vector is not empty");
+        let first_evaluation = internal_parallel_minimax::<GS, MIN_DEPTH_TO_SORT, MIN_DEPTH_TO_PARALLELIZE>(*first_child, true, depth - 1, alpha, beta).await;
+        if first_evaluation < min_evaluation {
+            min_evaluation = first_evaluation;
+            if min_evaluation <= alpha {
+                return min_evaluation;
+            }
+            if min_evaluation < beta {
+                beta = min_evaluation;
+            }
+        }
+
+        let mut tasks = FuturesUnordered::new();
+
+        for child in children_states.into_iter().skip(1) {
+            tasks.push(tokio::spawn(async move {
+                return alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(&child, true, depth - 1, alpha, beta, &mut Vec::with_capacity(32), &mut 0);
+            }));
+        }
+
+        while let Some(task) = tasks.next().await {
+            let evaluation = task.expect("Task failed");
+            if evaluation < min_evaluation {
+                min_evaluation = evaluation;
+                if min_evaluation <= alpha {
+                    break;
+                }
+                if min_evaluation < beta {
+                    beta = min_evaluation;
+                }
+            }
+        }
+
+        return min_evaluation;
+    }
+}
+
+
+pub async fn parallel_minimax<
+    GS: GameState + MinimaxReady + 'static,
+    const MIN_DEPTH_TO_SORT: usize,
+    const MIN_DEPTH_TO_PARALLELIZE: usize,
+>(game_state: GS, depth: usize) -> f32 {
+    let result = internal_parallel_minimax::<GS, MIN_DEPTH_TO_SORT, MIN_DEPTH_TO_PARALLELIZE>(
+        game_state,
+        game_state.is_player_a_turn(),
+        depth,
+        f32::NEG_INFINITY,
+        f32::INFINITY,
+    );
+
+    return result.await;
 }
 
 

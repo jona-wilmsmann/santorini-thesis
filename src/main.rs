@@ -7,9 +7,11 @@ use anyhow::Result;
 use rand::SeedableRng;
 use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
-use santorini_minimax::game_state::{GameState, MinimaxReady};
+use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, MinimaxReady, SimplifiedState};
+use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::generic_game_state::GenericGameState;
-use santorini_minimax::minimax::{alpha_beta_sorted_minimax, cached_minimax};
+use santorini_minimax::minimax::{alpha_beta_sorted_minimax, cached_minimax, parallel_minimax};
+use santorini_minimax::precompute_state_winner::presolve_state_winner;
 use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
 use santorini_minimax::stats::benchmark_minimax_cached::BenchmarkMinimaxCached;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
@@ -87,12 +89,84 @@ fn main() {
         .enable_all()
         .build()
         .unwrap();
-    runtime.block_on(async_main());
+    runtime.block_on(tokio_main());
 }
 
-async fn async_main() {
+async fn tokio_main() {
     type GS5x5 = GameState5x5BinaryComposite;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
+
+    let general_state = GGS5x5::new(
+        Some([6, 12]),
+        Some([7, 13]),
+        [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+        ],
+        true,
+    ).unwrap();
+    let game_state = GS5x5::from_generic_game_state(&general_state);
+
+    for depth in 1..=32 {
+        let start = std::time::Instant::now();
+        let result = parallel_minimax::<GS5x5, 3, 3>(game_state.clone(), depth).await;
+        let duration = start.elapsed();
+
+        println!("-------------------");
+        println!("Depth: {}", depth);
+        println!("Result: {}", result);
+        println!("Duration: {}s", duration.as_secs_f64());
+    }
+
+    return;
+
+
+    /*
+    type GS4x4 = GameState4x4Binary3Bit;
+
+    let available_threads = std::thread::available_parallelism().expect("Could not get number of threads").get();
+    for block_count in (0..=60).rev() {
+        println!("Starting presolve for block {}...", block_count);
+        presolve_state_winner::<GS4x4, 1>(block_count, available_threads - 4).await.unwrap();
+    }
+
+    return;
+
+     */
+
+    /*
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+    let random_states: Vec<GS5x5> = (0..100)
+        .map(|_| GS5x5::from_generic_game_state(&GenericGameState::generate_random_state_with_blocks_rng(&mut rng, 20))).collect();
+
+    let mut total_normal_duration = std::time::Duration::new(0, 0);
+    let mut total_parallel_duration = std::time::Duration::new(0, 0);
+    for (i, state) in random_states.into_iter().enumerate() {
+        let normal_start = std::time::Instant::now();
+        let normal_result = alpha_beta_sorted_minimax::<GS5x5, 3>(&state, 9).0;
+        let normal_duration = normal_start.elapsed();
+        total_normal_duration += normal_duration;
+
+        let parallel_start = std::time::Instant::now();
+        let parallel_result = parallel_minimax::<GS5x5, 3, 9>(state, 9).await;
+        let parallel_duration = parallel_start.elapsed();
+        total_parallel_duration += parallel_duration;
+
+        if normal_result != parallel_result {
+            println!("Mismatch at state {}: normal: {}, parallel: {}", i, normal_result, parallel_result);
+        }
+        println!("{}s Normal\n{}s Parallel\n--------------------", normal_duration.as_secs_f64(), parallel_duration.as_secs_f64());
+    }
+
+
+    println!("TOTAL\n{}s Normal\n{}s Parallel\n--------------------", total_normal_duration.as_secs_f64(), total_parallel_duration.as_secs_f64());
+
+    return;
+
+     */
 
     /*
     let mut rng = rand::rngs::StdRng::seed_from_u64(0);
@@ -143,15 +217,15 @@ async fn async_main() {
         benchmark_minimax_simple_5x5,
     );
     //benchmark_minimax_alpha_beta_5x5.gather_and_store_data().await.unwrap();
-    benchmark_minimax_alpha_beta_5x5.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_alpha_beta_5x5.generate_graph_from_most_recent_data().unwrap();
 
-    //let most_recent_data = benchmark_minimax_alpha_beta_5x5.get_most_recent_data_file().unwrap();
-    //let data = benchmark_minimax_alpha_beta_5x5.get_data(&most_recent_data).unwrap();
-    //let max_exec_time = data.raw_measurements_alpha_beta.iter().map(|m| m.iter().map(|m| m.computation_time.as_nanos()).max().unwrap()).max().unwrap();
-    //println!("Max exec time: {}", max_exec_time);
+    let most_recent_data = benchmark_minimax_alpha_beta_5x5.get_most_recent_data_file().unwrap();
+    let data = benchmark_minimax_alpha_beta_5x5.get_data(&most_recent_data).unwrap();
+    let max_exec_time = data.raw_measurements_alpha_beta.iter().map(|m| m.iter().filter(|m| m.result.is_finite()).map(|m| m.computation_time.as_nanos()).max().unwrap()).max().unwrap();
+    println!("Max exec time: {}", max_exec_time);
 
 
-    let benchmark_minimax_sorted_5x5_always_sort  = BenchmarkMinimaxSorted::<GS5x5, 0>::new(
+    let benchmark_minimax_sorted_5x5_always_sort = BenchmarkMinimaxSorted::<GS5x5, 0>::new(
         "Santorini".to_string(),
         "5x5 Binary Composite".to_string(),
         "5x5_binary_composite".to_string(),
@@ -161,7 +235,7 @@ async fn async_main() {
         benchmark_minimax_alpha_beta_5x5.clone(),
     );
     //benchmark_minimax_sorted_5x5_always_sort.gather_and_store_data().await.unwrap();
-    benchmark_minimax_sorted_5x5_always_sort.generate_graph_from_most_recent_data().unwrap();
+    //benchmark_minimax_sorted_5x5_always_sort.generate_graph_from_most_recent_data().unwrap();
 
 
     let benchmark_minimax_sorted_5x5 = BenchmarkMinimaxSorted::<GS5x5, 3>::new(
@@ -187,8 +261,7 @@ async fn async_main() {
         benchmark_minimax_sorted_5x5,
     );
     //benchmark_minimax_cached_5x5.gather_and_store_data().await.unwrap();
-    benchmark_minimax_cached_5x5.generate_graph_from_most_recent_data().unwrap();
-
+    //benchmark_minimax_cached_5x5.generate_graph_from_most_recent_data().unwrap();
 
 
     //let _ = average_branching_factor::<GS5x5>(1000, 20, 6).await;
