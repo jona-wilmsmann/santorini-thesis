@@ -34,10 +34,10 @@ pub trait ContinuousId {
 }
 
 pub trait ContinuousBlockId : SimplifiedState {
-    fn get_block_count(&self) -> u64;
-    fn get_continuous_block_id_count(block_count: usize) -> u64;
+    fn get_block_count(&self) -> i64;
+    fn get_continuous_block_id_count(block_count: isize) -> u64;
     fn get_continuous_block_id(&self) -> u64;
-    fn from_continuous_block_id(block_count: usize, continuous_id: u64) -> Self;
+    fn from_continuous_block_id(block_count: isize, continuous_id: u64) -> Self;
 }
 
 #[allow(dead_code)]

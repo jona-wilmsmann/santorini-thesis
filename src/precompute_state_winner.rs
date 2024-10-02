@@ -3,9 +3,12 @@ use std::sync::{Arc, Mutex};
 use crate::game_state::{ContinuousBlockId, GameState, SimplifiedState};
 use anyhow::Result;
 use chrono::Local;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use num_format::ToFormattedString;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
+use crate::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use crate::precompute_state_winner::bit_vector::BitVector;
 use crate::precompute_state_winner::bit_writer::BitWriter;
 
@@ -131,7 +134,7 @@ fn presolve_state<
     };
 }
 
-async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, total_count: u64, block_count: usize) {
+async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, total_count: u64, block_count: isize) {
     let mut solved_count = solved_count.lock().unwrap();
 
     let previous_percentage = *solved_count * 100 / total_count;
@@ -152,7 +155,7 @@ async fn update_solved_count(solved_count: &Arc<Mutex<u64>>, newly_solved: u64, 
 pub async fn presolve_state_winner<
     GS: GameState + SimplifiedState + ContinuousBlockId,
     const BITS_PER_ENTRY: usize,
->(block_count: usize, parallel_tasks: usize) -> Result<()> {
+>(block_count: isize, parallel_tasks: usize) -> Result<()> {
     assert!(BITS_PER_ENTRY == 1 || BITS_PER_ENTRY == 2);
 
     let data_folder_path = env::var("WINNER_DATA_FOLDER").expect("WINNER_DATA_FOLDER must be set");
@@ -227,4 +230,93 @@ pub async fn presolve_state_winner<
     println!("Combined all files for block {}", block_count);
 
     return Ok(());
+}
+
+
+// Checks if a forced win for player B can be found in the current state with the given remaining moves
+fn internal_find_forced_win(state: &GameState4x4Binary3Bit, max_moves: usize, player_a_turn: bool, bit_vectors: &Vec<BitVector<1>>, child_bit_vector_index: usize, reusable_child_states: &mut Vec<GameState4x4Binary3Bit>) -> bool {
+    state.get_children_states_reuse_vec(reusable_child_states);
+
+    if reusable_child_states.is_empty() {
+        return player_a_turn;
+    }
+
+    if max_moves == 0 {
+        return false;
+    }
+
+    let mut reusable_vec_for_child_states = Vec::with_capacity(32);
+
+    let child_bit_vector = bit_vectors.get(child_bit_vector_index).unwrap();
+
+    if player_a_turn {
+        for child_state in reusable_child_states {
+            if child_state.has_player_a_won() {
+                return false;
+            }
+            let simplified_child_state = child_state.get_simplified_state();
+            let child_block_id = simplified_child_state.get_continuous_block_id();
+            if child_bit_vector.get(child_block_id as usize) == PresolveResult::PlayerAWinning as u8 {
+                return false;
+            }
+            if !internal_find_forced_win(&simplified_child_state, max_moves - 1, false, bit_vectors, child_bit_vector_index + 1, &mut reusable_vec_for_child_states) {
+                return false;
+            }
+        }
+        return true;
+    } else {
+        for child_state in reusable_child_states {
+            if child_state.has_player_b_won() {
+                return true;
+            }
+            let simplified_child_state = child_state.get_simplified_state();
+            let child_block_id = simplified_child_state.get_continuous_block_id();
+            if child_bit_vector.get(child_block_id as usize) == PresolveResult::PlayerAWinning as u8 {
+                continue;
+            }
+            if internal_find_forced_win(&simplified_child_state, max_moves - 1, true, bit_vectors, child_bit_vector_index + 1, &mut reusable_vec_for_child_states) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+
+// This function is specific to the 4x4 binary 3-bit game state
+// It finds the shorted forced win for player B
+pub async fn find_shortest_forced_win() -> Result<usize> {
+    type GS = GameState4x4Binary3Bit;
+
+    let data_folder_path = env::var("WINNER_DATA_FOLDER").expect("WINNER_DATA_FOLDER must be set");
+
+    let mut bit_vectors = Vec::new();
+
+    let initial_block_id = -2;
+
+    let initial_block_id_count = GS::get_continuous_block_id_count(initial_block_id);
+    let expected_length = (initial_block_id_count as usize + 7) / 8;
+    let bit_vector = BitVector::from_file_with_expected_length(&format!("{}/block{}_{}-{}.bin", data_folder_path, initial_block_id, 0, initial_block_id_count - 1), expected_length).await?;
+    bit_vectors.push(bit_vector);
+
+
+    let initial_state = GS::from_continuous_block_id(initial_block_id, 0);
+
+    for move_limit in (1..=30).map(|x| x * 2) {
+        println!("Checking move limit {}", move_limit);
+        for block_id in (initial_block_id + move_limit as isize - 1)..=(initial_block_id + move_limit as isize) {
+            let block_id_count = GS::get_continuous_block_id_count(block_id);
+            let expected_length = (block_id_count as usize + 7) / 8;
+            let bit_vector = BitVector::from_file_with_expected_length(&format!("{}/block{}_{}-{}.bin", data_folder_path, block_id, 0, block_id_count - 1), expected_length).await?;
+            bit_vectors.push(bit_vector);
+        }
+
+        if internal_find_forced_win(&initial_state, move_limit, true, &bit_vectors, 1, &mut Vec::with_capacity(32)) {
+            println!("Found forced win for move limit {}", move_limit);
+            return Ok(move_limit);
+        }
+        println!("No forced win found for move limit {}", move_limit);
+    }
+
+    return Err(anyhow::anyhow!("No forced win found"));
 }

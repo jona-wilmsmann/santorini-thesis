@@ -135,7 +135,7 @@ mod tests {
         ).unwrap();
 
         let generic_state_without_all_workers = GenericSantoriniGameState::<4, 4, 1>::new(
-            Some([0]),
+            Some([2]),
             None,
             [[0; 4]; 4],
             false,
@@ -161,7 +161,7 @@ mod tests {
             assert_eq!(state_3b.is_simplified(), state_4b.is_simplified());
 
             assert_eq!(simplified_state_3b.is_simplified(), true);
-            //assert_eq!(simplified_state_4b.is_simplified(), true);
+            assert_eq!(simplified_state_4b.is_simplified(), true);
 
             assert_eq!(generic_simplified_state_3b, generic_simplified_state_4b);
         }

@@ -12,7 +12,7 @@ pub struct PresolveAnalysis {}
 
 #[derive(Serialize, Deserialize)]
 pub struct PresolveBlockData {
-    pub block_count: usize,
+    pub block_count: isize,
     pub player_a_winning_states: u64,
     pub player_b_winning_states: u64,
 }
@@ -103,7 +103,7 @@ impl StatGenerator for PresolveAnalysis {
             .margin(10)
             .x_label_area_size(40)
             .y_label_area_size(50)
-            .build_cartesian_2d((0usize..60).into_segmented(), 0.0..1.0)?;
+            .build_cartesian_2d((0isize..60).into_segmented(), 0.0..1.0)?;
 
 
         chart_log

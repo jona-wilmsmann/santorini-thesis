@@ -88,33 +88,49 @@ pub mod gs4x4_symmetric_simplified {
         return new_tile_id;
     }
 
-    pub const PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE: [[SymmetricMirrorType; 16]; 16] = precompute_mirror_types();
+    pub const PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE: [[SymmetricMirrorType; 17]; 17] = precompute_mirror_types();
 
-    const fn precompute_mirror_types() -> [[SymmetricMirrorType; 16]; 16] {
-        let mut player_a_pos_player_b_pos_to_mirror_type = [[0; 16]; 16];
+    const fn precompute_mirror_types() -> [[SymmetricMirrorType; 17]; 17] {
+        let mut player_a_pos_player_b_pos_to_mirror_type = [[0; 17]; 17];
 
         let mut player_a_tile = 0;
-        while player_a_tile < 16 {
-            let player_a_pos = TILE_ID_TO_POSITION[player_a_tile];
+        while player_a_tile < 17 {
+            let player_a_pos = if player_a_tile < 16 {
+                TILE_ID_TO_POSITION[player_a_tile]
+            } else {
+                16
+            };
             let mut player_b_tile = 0;
-            while player_b_tile < 16 {
-                let player_b_pos = TILE_ID_TO_POSITION[player_b_tile];
+            while player_b_tile < 17 {
+                let player_b_pos = if player_b_tile < 16 {
+                    TILE_ID_TO_POSITION[player_b_tile]
+                } else {
+                    16
+                };
 
                 let ccw_rotations = match player_a_tile {
-                    0 | 1 | 4 | 5 => 0,
+                    0 | 1 | 4 | 5 | 16 => 0,
                     2 | 3 | 6 | 7 => 3,
                     10 | 11 | 14 | 15 => 2,
                     8 | 9 | 12 | 13 => 1,
                     _ => panic!("Invalid tile id")
                 };
 
-                let player_a_tile_rotated = get_rotated_tile_id(player_a_tile, ccw_rotations);
+                let player_a_tile_rotated = if player_a_tile < 16 {
+                    get_rotated_tile_id(player_a_tile, ccw_rotations)
+                } else {
+                    16
+                };
                 let diagonal_mirroring = if player_a_tile_rotated == 4 {
                     true
                 } else if player_a_tile_rotated == 1 {
                     false
                 } else {
-                    let player_b_tile_rotated = get_rotated_tile_id(player_b_tile, ccw_rotations);
+                    let player_b_tile_rotated = if player_b_tile < 16 {
+                        get_rotated_tile_id(player_b_tile, ccw_rotations)
+                    } else {
+                        16
+                    };
                     match player_b_tile_rotated {
                         4 | 8 | 9 | 12 | 13 | 14 => true,
                         _ => false

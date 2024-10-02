@@ -80,8 +80,17 @@ impl GameState4x4Binary4Bit {
         let player_b_bits = self.0 & Self::PLAYER_B_MASK;
         let cleaned_player_a_bit = player_a_bits & !(player_b_bits << 1);
         let cleaned_player_b_bit = player_b_bits & !(player_a_bits >> 1);
-        let player_a_position = cleaned_player_a_bit.trailing_zeros() as usize / 4;
-        let player_b_position = cleaned_player_b_bit.trailing_zeros() as usize / 4;
+
+        let player_a_position = if cleaned_player_a_bit == 0 {
+            16
+        } else {
+            cleaned_player_a_bit.trailing_zeros() as usize / 4
+        };
+        let player_b_position = if cleaned_player_b_bit == 0 {
+            16
+        } else {
+            cleaned_player_b_bit.trailing_zeros() as usize / 4
+        };
 
         return if self.is_player_a_turn() {
             (player_a_position, player_b_position)
@@ -375,11 +384,6 @@ impl MinimaxReady for GameState4x4Binary4Bit {
 
 impl SimplifiedState for GameState4x4Binary4Bit {
     fn get_simplified_state(&self) -> Self {
-        if self.0 & Self::PLAYER_A_MASK == 0 || self.0 & Self::PLAYER_B_MASK == 0 {
-            // Setup phase states are always considered simplified
-            return *self;
-        }
-
         let (player_a_position, player_b_position) = self.get_generic_player_positions();
 
         let transposition_type = gs4x4_symmetric_simplified::PLAYER_A_POS_PLAYER_B_POS_TO_MIRROR_TYPE[player_a_position][player_b_position];
@@ -410,16 +414,17 @@ impl SimplifiedState for GameState4x4Binary4Bit {
     }
 
     fn is_simplified(&self) -> bool {
-        if self.0 & Self::PLAYER_A_MASK == 0 || self.0 & Self::PLAYER_B_MASK == 0 {
-            // Setup phase states are always considered simplified
+        let (player_a_position, player_b_position) = self.get_generic_player_positions();
+
+        if player_a_position == 16 {
             return true;
         }
 
-        let (player_a_position, player_b_position) = self.get_generic_player_positions();
-
-
         for combination in gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
             if player_a_position == combination.player_a_position {
+                if player_b_position == 16 {
+                    return true;
+                }
                 for i in 0..combination.player_b_options {
                     if player_b_position == combination.player_b_positions[i] {
                         return true;

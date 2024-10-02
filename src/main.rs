@@ -14,6 +14,7 @@ use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, 
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::generic_game_state::GenericGameState;
 use santorini_minimax::minimax::{alpha_beta_sorted_minimax, cached_minimax, parallel_minimax};
+use santorini_minimax::precompute_state_winner::{find_shortest_forced_win, presolve_state_winner};
 use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
 use santorini_minimax::stats::benchmark_minimax_cached::BenchmarkMinimaxCached;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
@@ -101,6 +102,9 @@ async fn tokio_main() {
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
     type GS4x4 = GameState4x4Binary3Bit;
 
+    find_shortest_forced_win().await.unwrap();
+
+    return;
 
     /*
 

@@ -7,6 +7,7 @@ use crate::game_state::utils::precompute_position_to_tile_id::precompute_positio
 use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
 use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
 use crate::game_state::utils::symmetric_simplified::gs4x4_symmetric_simplified;
+use crate::game_state::utils::symmetric_simplified::gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 
 /*
@@ -302,11 +303,6 @@ impl MinimaxReady for GameState4x4Binary3Bit {
 
 impl SimplifiedState for GameState4x4Binary3Bit {
     fn get_simplified_state(&self) -> Self {
-        if self.0 & ((1 << 52) | (1 << 57)) != 0 {
-            // Setup phase states are always considered simplified
-            return *self;
-        }
-
         let height_information = self.0 & 0xFFFFFFFFFFFF;
         let status_information = self.0 & (0xFF << 61);
         let player_a_position = self.get_player_a_position();
@@ -336,11 +332,23 @@ impl SimplifiedState for GameState4x4Binary3Bit {
             new_height_information = mirrored_height_information;
         }
 
-        let mut new_player_a_position = (player_a_position + ccw_rotations * 4) % 16;
-        let mut new_player_b_position = (player_b_position + ccw_rotations * 4) % 16;
+        let mut new_player_a_position = if player_a_position < 16 {
+            (player_a_position + ccw_rotations * 4) % 16
+        } else {
+            16
+        };
+        let mut new_player_b_position = if player_b_position < 16 {
+            (player_b_position + ccw_rotations * 4) % 16
+        } else {
+            16
+        };
         if diagonal_mirroring {
-            new_player_a_position = gs4x4_symmetric_simplified::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_a_position as usize];
-            new_player_b_position = gs4x4_symmetric_simplified::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_b_position as usize];
+            if player_a_position < 16 {
+                new_player_a_position = gs4x4_symmetric_simplified::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_a_position as usize];
+            }
+            if player_b_position < 16 {
+                new_player_b_position = gs4x4_symmetric_simplified::POS_TO_DIAGONALLY_MIRRORED_POS[new_player_b_position as usize];
+            }
         }
 
         let new_state = new_height_information | (new_player_a_position << 48) | (new_player_b_position << 53) | status_information;
@@ -349,17 +357,18 @@ impl SimplifiedState for GameState4x4Binary3Bit {
     }
 
     fn is_simplified(&self) -> bool {
-        if self.0 & ((1 << 52) | (1 << 57)) != 0 {
-            // Setup phase states are always considered simplified
-            return true;
-        }
-
         let player_a_position = self.get_player_a_position() as usize;
         let player_b_position = self.get_player_b_position() as usize;
 
+        if player_a_position == 16 {
+            return true;
+        }
 
         for combination in gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter() {
             if player_a_position == combination.player_a_position {
+                if player_b_position == 16 {
+                    return true;
+                }
                 for i in 0..combination.player_b_options {
                     if player_b_position == combination.player_b_positions[i] {
                         return true;
@@ -708,55 +717,76 @@ impl GameState4x4Binary3Bit {
         return tile_height_combinations;
     }
 
-    fn get_possible_state_count_for_remaining(mut remaining_tiles: u64, remaining_counts: Vec<u64>) -> u64 {
-        debug_assert!(remaining_tiles >= remaining_counts.iter().sum());
+fn get_possible_state_count_for_remaining(mut remaining_tiles: u64, remaining_counts: Vec<u64>) -> u64 {
+    debug_assert!(remaining_tiles >= remaining_counts.iter().sum());
 
-        let mut possible_state_count = 1;
+    let mut possible_state_count = 1;
 
-        for remaining_count in remaining_counts {
-            possible_state_count *= get_binomial_coefficient(remaining_tiles, remaining_count);
-            remaining_tiles -= remaining_count;
-        }
-
-        return possible_state_count;
+    for remaining_count in remaining_counts {
+        possible_state_count *= get_binomial_coefficient(remaining_tiles, remaining_count);
+        remaining_tiles -= remaining_count;
     }
 
-    fn find_matching_combination(block_count: usize, continuous_id: u64) -> &'static TileHeightCombination {
-        let tile_height_combinations = &Self::TILE_HEIGHT_COMBINATIONS[block_count];
+    return possible_state_count;
+}
 
-        let mut low = 0;
-        let mut high = Self::MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT[block_count];
+fn find_matching_combination(block_count: usize, continuous_id: u64) -> &'static TileHeightCombination {
+    let tile_height_combinations = &Self::TILE_HEIGHT_COMBINATIONS[block_count];
 
-        while low < high {
-            let mid = low + (high - low) / 2;
-            let mid_combination = &tile_height_combinations[mid];
-            if mid_combination.previous_summed_state_offset <= continuous_id {
-                low = mid + 1;
-            } else {
-                high = mid;
-            }
-        }
+    let mut low = 0;
+    let mut high = Self::MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT[block_count];
 
-        return if low == 0 {
-            &tile_height_combinations[0]
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let mid_combination = &tile_height_combinations[mid];
+        if mid_combination.previous_summed_state_offset <= continuous_id {
+            low = mid + 1;
         } else {
-            &tile_height_combinations[low - 1]
-        };
+            high = mid;
+        }
     }
+
+    return if low == 0 {
+        &tile_height_combinations[0]
+    } else {
+        &tile_height_combinations[low - 1]
+    };
+}
 }
 
 impl ContinuousBlockId for GameState4x4Binary3Bit {
-    fn get_block_count(&self) -> u64 {
+    fn get_block_count(&self) -> i64 {
         let mut block_count = 0;
         let mut data = self.0;
         for _ in 0..16 {
             block_count += data & 0x7;
             data >>= 3;
         }
-        return block_count;
+
+        return if block_count != 0 {
+            block_count as i64
+        } else {
+            if self.get_player_a_position() == 16 {
+                -2
+            } else if self.get_player_b_position() == 16 {
+                -1
+            } else {
+                0
+            }
+        };
     }
 
-    fn get_continuous_block_id_count(block_count: usize) -> u64 {
+    fn get_continuous_block_id_count(block_count: isize) -> u64 {
+        if block_count < 0 {
+            return match block_count {
+                -2 => 1,
+                -1 => 3,
+                _ => 0,
+            }
+        }
+
+        let block_count = block_count as usize;
+
         if block_count > Self::TILE_HEIGHT_COMBINATIONS.len() {
             return 0;
         }
@@ -780,8 +810,19 @@ impl ContinuousBlockId for GameState4x4Binary3Bit {
         let player_a_position = self.get_player_a_position();
         let player_b_position = self.get_player_b_position();
 
-        debug_assert!(player_a_position & 0x10 == 0);
-        debug_assert!(player_b_position & 0x10 == 0);
+        if player_a_position == 16 {
+            // There is only one possible state
+            return 0;
+        }
+        if player_b_position == 16 {
+            // There are three possible states
+            for (index, variant) in gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS.iter().enumerate() {
+                if player_a_position as usize == variant.player_a_position {
+                    return index as u64;
+                }
+            }
+            panic!("No matching variant found, this should not be possible");
+        }
 
         let player_a_height = position_heights[player_a_position as usize];
         let player_b_height = position_heights[player_b_position as usize];
@@ -848,7 +889,25 @@ impl ContinuousBlockId for GameState4x4Binary3Bit {
         return continuous_id;
     }
 
-    fn from_continuous_block_id(block_count: usize, mut continuous_id: u64) -> Self {
+    fn from_continuous_block_id(block_count: isize, mut continuous_id: u64) -> Self {
+        if block_count < 0 {
+            return match block_count {
+                -2 => {
+                    match continuous_id {
+                        0 => Self(1 << 61 | 16 << 48 | 16 << 53),
+                        _ => panic!("Invalid continuous_id"),
+                    }
+                },
+                -1 => {
+                    let simplified_variant = POSSIBLE_SIMPLIFIED_STATE_VARIANTS[continuous_id as usize];
+                    return Self((simplified_variant.player_a_position as u64) << 48 | 16 << 53);
+                },
+                _ => panic!("Invalid block count"),
+            }
+        }
+
+        let block_count = block_count as usize;
+
         let matching_combination = Self::find_matching_combination(block_count, continuous_id);
         continuous_id -= matching_combination.previous_summed_state_offset;
 
