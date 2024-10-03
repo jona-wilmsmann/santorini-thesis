@@ -7,14 +7,14 @@ use plotters::prelude::*;
 use serde::{Deserialize, Serialize};
 use rand::SeedableRng;
 use tokio::sync::Mutex;
-use crate::game_state::{GameState, MinimaxReady};
+use crate::game_state::{GameState, SantoriniEval};
 use crate::generic_game_state::GenericGameState;
 use crate::minimax::minimax;
 use crate::minimax::minimax_cache::MinimaxCache;
 use crate::stats::StatGenerator;
 use crate::stats::utils::formatters::ns_formatter;
 
-use plotters::prelude::full_palette::{BROWN, GREEN_900, GREY, ORANGE, PURPLE, YELLOW_A400};
+use plotters::prelude::full_palette::{BROWN, GREEN_900, GREY, LIGHTBLUE, ORANGE, PURPLE, YELLOW_600};
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 
 fn get_color(index: usize) -> RGBColor {
@@ -29,14 +29,16 @@ fn get_color(index: usize) -> RGBColor {
         7 => ORANGE,
         8 => GREY,
         9 => GREEN_900,
-        10 => YELLOW_A400,
+        10 => YELLOW_600,
+        11 => BLACK,
+        12 => LIGHTBLUE,
         _ => BLACK, // Fallback in case index exceeds 9
     }
 }
 
 
 #[derive(Clone)]
-pub struct MinimaxSolveStats<GS: GameState + MinimaxReady> {
+pub struct MinimaxSolveStats<GS: GameState + SantoriniEval> {
     game_state_name: String,
     game_state_short_name: String,
     depths: RangeInclusive<usize>,
@@ -62,7 +64,7 @@ pub struct MinimaxSolveData {
 }
 
 
-impl<GS: GameState + MinimaxReady> MinimaxSolveStats<GS> {
+impl<GS: GameState + SantoriniEval> MinimaxSolveStats<GS> {
     pub fn new(game_state_name: String, game_state_short_name: String, depths: RangeInclusive<usize>, block_counts: RangeInclusive<usize>, number_game_states: usize) -> MinimaxSolveStats<GS> {
         return MinimaxSolveStats {
             game_state_name,
@@ -76,7 +78,7 @@ impl<GS: GameState + MinimaxReady> MinimaxSolveStats<GS> {
 }
 
 
-impl<GS: GameState + MinimaxReady + 'static> StatGenerator for MinimaxSolveStats<GS> {
+impl<GS: GameState + SantoriniEval + 'static> StatGenerator for MinimaxSolveStats<GS> {
     type DataType = MinimaxSolveData;
 
     fn get_stat_name(&self) -> String {
@@ -196,7 +198,7 @@ impl<GS: GameState + MinimaxReady + 'static> StatGenerator for MinimaxSolveStats
         let time_root = SVGBackend::new(&time_graph_path, (width, height)).into_drawing_area();
         time_root.fill(&WHITE)?;
 
-        let log_duration_range = (100..1e11 as usize).log_scale();
+        let log_duration_range = (100..1e12 as usize).log_scale();
 
         let mut time_chart = ChartBuilder::on(&time_root)
             .margin(20)
@@ -230,7 +232,7 @@ impl<GS: GameState + MinimaxReady + 'static> StatGenerator for MinimaxSolveStats
             .position(SeriesLabelPosition::UpperRight)
             .border_style(&BLACK)
             .background_style(WHITE.filled())
-            .label_font(("sans-serif", 18).into_font())
+            .label_font(("sans-serif", 16).into_font())
             .draw()?;
 
 
@@ -294,7 +296,7 @@ impl<GS: GameState + MinimaxReady + 'static> StatGenerator for MinimaxSolveStats
             .position(SeriesLabelPosition::UpperLeft)
             .border_style(&BLACK)
             .background_style(WHITE.filled())
-            .label_font(("sans-serif", 18).into_font())
+            .label_font(("sans-serif", 16).into_font())
             .draw()?;
 
 

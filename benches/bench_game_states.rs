@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, MinimaxReady, SimplifiedState};
+use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, SantoriniEval, SimplifiedState};
 use rand::{Rng, SeedableRng};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::game_state::game_state_4x4_binary_4bit::GameState4x4Binary4Bit;
@@ -9,7 +9,7 @@ use santorini_minimax::game_state::game_state_5x5_binary_128bit::GameState5x5Bin
 use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::generic_game_state::GenericGameState;
-use santorini_minimax::minimax::{alpha_beta_sorted_minimax, alpha_beta_minimax, minimax, simple_minimax};
+use santorini_minimax::minimax::{alpha_beta_sorted_minimax, alpha_beta_minimax, minimax, simple_minimax, cached_minimax};
 use santorini_minimax::minimax::minimax_cache::MinimaxCache;
 
 fn benchmark_game_state<GS: GameState>(name: &str, c: &mut Criterion) {
@@ -55,7 +55,7 @@ fn benchmark_game_state<GS: GameState>(name: &str, c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_minimax<GS: GameState + MinimaxReady>(simple_depth: usize, alpha_beta_depth: usize, sorted_alpha_beta_depth: usize, depth: usize, name: &str, c: &mut Criterion) {
+fn benchmark_minimax<GS: GameState + SantoriniEval>(simple_depth: usize, alpha_beta_depth: usize, sorted_alpha_beta_depth: usize, depth: usize, name: &str, c: &mut Criterion) {
     let mut rng = rand::rngs::StdRng::seed_from_u64(0);
 
     let random_states: Vec<GS> = (0..1000000).map(|_| GS::from_generic_game_state(&GenericGameState::generate_random_state_rng(&mut rng))).collect();
@@ -64,9 +64,9 @@ fn benchmark_minimax<GS: GameState + MinimaxReady>(simple_depth: usize, alpha_be
 
     group.sample_size(10);
 
-    group.bench_function("get 1,000,000 static evaluations", |b| b.iter(|| {
+    group.bench_function("get 1,000,000 child evaluations", |b| b.iter(|| {
         for state in &random_states {
-            black_box(state.get_static_evaluation());
+            black_box(state.get_child_evaluation());
         }
     }));
 
@@ -84,7 +84,13 @@ fn benchmark_minimax<GS: GameState + MinimaxReady>(simple_depth: usize, alpha_be
 
     group.bench_function(format!("sorted alpha beta minimax to depth {} for 100 states", sorted_alpha_beta_depth), |b| b.iter(|| {
         for state in random_states.iter().take(100) {
-            black_box(alpha_beta_sorted_minimax(state, sorted_alpha_beta_depth));
+            black_box(alpha_beta_sorted_minimax::<GS, 3>(state, sorted_alpha_beta_depth));
+        }
+    }));
+
+    group.bench_function(format!("cached minimax to depth {} for 100 states", sorted_alpha_beta_depth), |b| b.iter(|| {
+        for state in random_states.iter().take(100) {
+            black_box(cached_minimax::<GS, 3, 3>(state, sorted_alpha_beta_depth));
         }
     }));
 
@@ -122,7 +128,7 @@ fn benchmark_continuous_id<GS: GameState + ContinuousId + ContinuousBlockId>(nam
     let random_states: Vec<GS> = (0..1000000).map(|_| GS::from_generic_game_state(&GenericGameState::generate_random_state_rng(&mut rng))).collect();
     let random_simplified_states: Vec<GS> = random_states.iter().map(|state| state.get_simplified_state()).collect();
     let random_continuous_ids: Vec<u64> = (0..1000000).map(|_| rng.gen_range(0..GameState4x4Binary3Bit::get_continuous_id_count())).collect();
-    let random_continuous_block_ids: Vec<(u64, u64)> = random_simplified_states.iter().map(|state| (state.get_block_count(), state.get_continuous_block_id())).collect();
+    let random_continuous_block_ids: Vec<(i64, u64)> = random_simplified_states.iter().map(|state| (state.get_block_count(), state.get_continuous_block_id())).collect();
 
     let mut group = c.benchmark_group(format!("{} - Simplified State Benchmark", name));
 
@@ -148,7 +154,7 @@ fn benchmark_continuous_id<GS: GameState + ContinuousId + ContinuousBlockId>(nam
 
     group.bench_function("generate 1,000,000 states from continuous block id", |b| b.iter(|| {
         for (block_count, continuous_block_id) in &random_continuous_block_ids {
-            black_box(GameState4x4Binary3Bit::from_continuous_block_id(*block_count as usize, *continuous_block_id));
+            black_box(GameState4x4Binary3Bit::from_continuous_block_id(*block_count as isize, *continuous_block_id));
         }
     }));
 

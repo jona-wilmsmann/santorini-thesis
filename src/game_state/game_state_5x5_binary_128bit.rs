@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
-use crate::game_state::{GameState, MinimaxReady};
+use crate::game_state::{GameState, SantoriniEval, SantoriniState5x5};
 use crate::game_state::utils::static_evaluation::gs5x5_static_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 
@@ -296,17 +296,19 @@ impl GameState for GameState5x5Binary128bit {
     }
 }
 
-impl MinimaxReady for GameState5x5Binary128bit {
-    fn get_static_evaluation(&self) -> f32 {
-        if self.has_player_a_won() {
-            return f32::MAX;
-        } else if self.has_player_b_won() {
-            return f32::MIN;
-        }
-        return gs5x5_static_evaluation::get_static_evaluation(self.get_tile_heights(), self.get_player_a_worker_tiles(), self.get_player_b_worker_tiles(), self.is_player_a_turn());
+impl SantoriniEval for GameState5x5Binary128bit {
+    type SantoriniState = SantoriniState5x5;
+
+    fn get_santorini_state(&self) -> Self::SantoriniState {
+        return SantoriniState5x5 {
+            tile_heights: self.get_tile_heights(),
+            worker_a_tiles: self.get_player_a_worker_tiles(),
+            worker_b_tiles: self.get_player_b_worker_tiles(),
+            player_a_turn: self.is_player_a_turn(),
+        };
     }
 
     fn get_child_evaluation(&self) -> f32 {
-        return self.get_static_evaluation();
+        return gs5x5_static_evaluation::get_child_evaluation(self.get_santorini_state())
     }
 }

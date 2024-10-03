@@ -2,11 +2,11 @@ pub mod minimax_cache;
 
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use crate::game_state::{GameState, MinimaxReady};
+use crate::game_state::{GameState, SantoriniEval};
 use crate::minimax::minimax_cache::{Bounds, MinimaxCache};
 
 #[inline(always)]
-fn order_children_states<GS: GameState + MinimaxReady>(children_states: &mut Vec<GS>, maximizing: bool) {
+fn order_children_states<GS: GameState + SantoriniEval>(children_states: &mut Vec<GS>, maximizing: bool) {
     // Create a vector of tuples with the static evaluation and the GameState
     let mut children_evaluations: Vec<(f32, &mut GS)> = children_states.into_iter().map(|state| (state.get_child_evaluation(), state)).collect();
     // Sort the vector by the static evaluation
@@ -136,7 +136,7 @@ pub fn alpha_beta_minimax<GS: GameState>(game_state: &GS, depth: usize) -> (f32,
 }
 
 
-fn alpha_beta_sorted_minimax_internal<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT: usize>(
+fn alpha_beta_sorted_minimax_internal<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SORT: usize>(
     game_state: &GS,
     maximizing_player: bool,
     depth: usize,
@@ -198,7 +198,7 @@ fn alpha_beta_sorted_minimax_internal<GS: GameState + MinimaxReady, const MIN_DE
     }
 }
 
-pub fn alpha_beta_sorted_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT: usize>(game_state: &GS, depth: usize) -> (f32, usize) {
+pub fn alpha_beta_sorted_minimax<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SORT: usize>(game_state: &GS, depth: usize) -> (f32, usize) {
     let mut evaluated_states = 0;
     let mut reused_children_vec = Vec::with_capacity(32);
     let result = alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(
@@ -213,7 +213,7 @@ pub fn alpha_beta_sorted_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_T
     return (result, evaluated_states);
 }
 
-fn internal_cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize>(
+fn internal_cached_minimax<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize>(
     game_state: &GS,
     maximizing_player: bool,
     depth: usize,
@@ -330,7 +330,7 @@ fn internal_cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT
 }
 
 
-pub fn cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize>(game_state: &GS, depth: usize) -> (f32, usize) {
+pub fn cached_minimax<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize>(game_state: &GS, depth: usize) -> (f32, usize) {
     let mut evaluated_states = 0;
     let mut cache = MinimaxCache::new();
 
@@ -349,7 +349,7 @@ pub fn cached_minimax<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT: usi
 }
 
 #[async_recursion::async_recursion]
-async fn internal_parallel_minimax<GS: GameState + MinimaxReady + 'static, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_PARALLELIZE: usize>(
+async fn internal_parallel_minimax<GS: GameState + SantoriniEval + 'static, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_PARALLELIZE: usize>(
     game_state: GS,
     maximizing_player: bool,
     depth: usize,
@@ -460,7 +460,7 @@ async fn internal_parallel_minimax<GS: GameState + MinimaxReady + 'static, const
 
 
 pub async fn parallel_minimax<
-    GS: GameState + MinimaxReady + 'static,
+    GS: GameState + SantoriniEval + 'static,
     const MIN_DEPTH_TO_SORT: usize,
     const MIN_DEPTH_TO_PARALLELIZE: usize,
 >(game_state: GS, depth: usize) -> f32 {
@@ -477,7 +477,7 @@ pub async fn parallel_minimax<
 
 
 
-fn internal_cached_minimax_no_count<GS: GameState + MinimaxReady, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize>(
+fn internal_cached_minimax_no_count<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize>(
     game_state: &GS,
     maximizing_player: bool,
     depth: usize,
@@ -589,7 +589,7 @@ fn internal_cached_minimax_no_count<GS: GameState + MinimaxReady, const MIN_DEPT
     }
 }
 
-pub fn minimax<GS: GameState + MinimaxReady>(game_state: &GS, depth: usize, alpha: f32, beta: f32, cache: &mut MinimaxCache<GS, 100>) -> f32 {
+pub fn minimax<GS: GameState + SantoriniEval>(game_state: &GS, depth: usize, alpha: f32, beta: f32, cache: &mut MinimaxCache<GS, 100>) -> f32 {
     return internal_cached_minimax_no_count::<GS, 3, 3>(
         game_state,
         game_state.is_player_a_turn(),

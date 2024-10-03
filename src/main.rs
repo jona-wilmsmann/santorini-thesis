@@ -10,7 +10,7 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
-use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, MinimaxReady, SimplifiedState};
+use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, SantoriniEval, SimplifiedState};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::generic_game_state::GenericGameState;
 use santorini_minimax::minimax::{alpha_beta_sorted_minimax, cached_minimax, parallel_minimax};
@@ -19,6 +19,7 @@ use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlph
 use santorini_minimax::stats::benchmark_minimax_cached::BenchmarkMinimaxCached;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
 use santorini_minimax::stats::benchmark_minimax_sorted::BenchmarkMinimaxSorted;
+use santorini_minimax::stats::game_states_by_block_count::GameStatesByBlockCount;
 use santorini_minimax::stats::minimax_solve_stats::MinimaxSolveStats;
 use santorini_minimax::stats::presolve_analysis::PresolveAnalysis;
 use santorini_minimax::stats::utils::formatters::ns_formatter;
@@ -53,7 +54,7 @@ fn store_game_state_image<const ROWS: usize, const COLUMNS: usize, const WORKERS
     return Ok(());
 }
 
-async fn average_branching_factor<GS: GameState + MinimaxReady + 'static>(number_random_states: usize, block_count: usize, depth: usize) -> Result<f32> {
+async fn average_branching_factor<GS: GameState + SantoriniEval + 'static>(number_random_states: usize, block_count: usize, depth: usize) -> Result<f32> {
     let mut rng = rand::rngs::StdRng::seed_from_u64(0);
     let random_states: Vec<GS> = (0..number_random_states)
         .map(|_| GS::from_generic_game_state(&GS::GenericGameState::generate_random_state_with_blocks_rng(&mut rng, block_count)))
@@ -102,9 +103,7 @@ async fn tokio_main() {
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
     type GS4x4 = GameState4x4Binary3Bit;
 
-    find_shortest_forced_win().await.unwrap();
-
-    return;
+    //find_shortest_forced_win().await.unwrap();
 
     /*
 
@@ -250,24 +249,46 @@ async fn tokio_main() {
     let minimax_solve_stats_5x5 = MinimaxSolveStats::<GS5x5>::new(
         "5x5 Binary Composite".to_string(),
         "5x5_binary_composite".to_string(),
-        1..=10,
+        1..=11,
         0..=92,
-        100,
+        1000,
     );
 
     //minimax_solve_stats_5x5.gather_and_store_data().await.unwrap();
     //minimax_solve_stats_5x5.generate_graph_from_most_recent_data().unwrap();
+    let most_recent_data = minimax_solve_stats_5x5.get_most_recent_data_file().unwrap();
+    let solve_data = minimax_solve_stats_5x5.get_data(&most_recent_data).unwrap();
+
+    let game_states_by_block_count = GameStatesByBlockCount::new(25, 2, " (5x5 Binary Composite)".to_string());
+    let block_data = game_states_by_block_count.gather_data().await.unwrap();
+
+    let depth_11_data = solve_data.raw_measurements.iter().filter(|m| m.depth == 1);
+
+    let mut total_states = 0;
+    let mut total_solved_states = 0;
+    for block_count in 0..=92 {
+        let mut solved_states = depth_11_data.clone().filter(|m| m.block_count == block_count).filter(|m| m.solved).count();
+        let portion = solved_states as f64 / 1000.0;
+
+        println!("Block count: {}, solved states: {}, portion: {}", block_count, solved_states, portion);
+
+        total_states += block_data.game_states_by_block_count[block_count];
+        total_solved_states += (block_data.game_states_by_block_count[block_count] as f64 * portion) as u128;
+    }
+
+    println!("Total states: {}, total solved states: {}", total_states, total_solved_states);
+    println!("Portion: {}", total_solved_states as f64 / total_states as f64);
 
 
     let minimax_solve_stats_4x4 = MinimaxSolveStats::<GS4x4>::new(
         "4x4 Binary 3 Bit".to_string(),
         "4x4_binary_3_bit".to_string(),
-        1..=12,
+        1..=13,
         0..=60,
-        100,
+        1000,
     );
     //minimax_solve_stats_4x4.gather_and_store_data().await.unwrap();
-    minimax_solve_stats_4x4.generate_graph_from_most_recent_data().unwrap();
+    //minimax_solve_stats_4x4.generate_graph_from_most_recent_data().unwrap();
 
 
     let presolve_analysis = PresolveAnalysis::new();

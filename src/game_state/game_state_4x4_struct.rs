@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
-use crate::game_state::{GameState, MinimaxReady};
+use crate::game_state::{GameState, SantoriniEval, SantoriniState4x4};
 use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 
@@ -228,12 +228,21 @@ impl GameState for GameState4x4Struct {
     }
 }
 
-impl MinimaxReady for GameState4x4Struct {
-    fn get_static_evaluation(&self) -> f32 {
-        return gs4x4_static_evaluation::get_static_evaluation(self.tile_heights, self.player_a_worker, self.player_b_worker, self.player_a_turn);
+impl SantoriniEval for GameState4x4Struct {
+    type SantoriniState = SantoriniState4x4;
+
+    fn get_santorini_state(&self) -> Self::SantoriniState {
+        // TODO: This uses tiles, but other 4x4 implementations use positions
+
+        return SantoriniState4x4 {
+            position_heights: self.tile_heights,
+            worker_a_position: self.player_a_worker,
+            worker_b_position: self.player_b_worker,
+            player_a_turn: self.player_a_turn,
+        };
     }
 
     fn get_child_evaluation(&self) -> f32 {
-        return self.get_static_evaluation();
+        return gs4x4_static_evaluation::get_child_evaluation(self.get_santorini_state());
     }
 }

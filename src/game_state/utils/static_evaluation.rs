@@ -5,6 +5,8 @@ pub mod gs4x4_static_evaluation {
     14 3  7  5
     0  1  2  4
      */
+    use crate::game_state::SantoriniState4x4;
+
     const TILE_ID_TO_POSITION: [usize; 16] = [0, 1, 2, 4, 14, 3, 7, 5, 13, 15, 11, 6, 12, 10, 9, 8];
 
     const DISTANCE_TO_STATIC_VALUATION: [f32; 4] = [5.0, 2.0, 1.0, 0.5];
@@ -56,14 +58,14 @@ pub mod gs4x4_static_evaluation {
 
 
     // Positions are 0-15 if placed, or 16 if not placed
-    pub fn get_static_evaluation(position_heights: [u8; 16], player_a_position: u8, player_b_position: u8, player_a_turn: bool) -> f32 {
-        let player_a_position = player_a_position as usize;
-        let player_b_position = player_b_position as usize;
+    pub fn get_child_evaluation(state: SantoriniState4x4) -> f32 {
+        let worker_a_position = state.worker_a_position as usize;
+        let worker_b_position = state.worker_b_position as usize;
 
-        if player_a_position < 16 && position_heights[player_a_position] == 3 {
-            return if player_a_turn { f32::MAX } else { f32::MIN };
-        } else if player_b_position < 16 && position_heights[player_b_position] == 3 {
-            return if player_a_turn { f32::MIN } else { f32::MAX };
+        if worker_a_position < 16 && state.position_heights[worker_a_position] == 3 {
+            return if state.player_a_turn { f32::MAX } else { f32::MIN };
+        } else if worker_b_position < 16 && state.position_heights[worker_b_position] == 3 {
+            return if state.player_a_turn { f32::MIN } else { f32::MAX };
         }
 
         let mut valuation = 0.0;
@@ -72,8 +74,8 @@ pub mod gs4x4_static_evaluation {
         // TODO: Consider unplaced workers
 
         for i in 0..16 {
-            valuation += POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[player_a_position][i][position_heights[player_a_position] as usize][position_heights[i] as usize];
-            valuation -= POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[player_b_position][i][position_heights[player_b_position] as usize][position_heights[i] as usize];
+            valuation += POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[worker_a_position][i][state.position_heights[worker_a_position] as usize][state.position_heights[i] as usize];
+            valuation -= POSITION_TO_POSITION_TO_HEIGHT_TO_HEIGHT_TO_VALUATION[worker_b_position][i][state.position_heights[worker_b_position] as usize][state.position_heights[i] as usize];
         }
 
         return valuation;
@@ -81,6 +83,8 @@ pub mod gs4x4_static_evaluation {
 }
 
 pub mod gs5x5_static_evaluation {
+    use crate::game_state::SantoriniState5x5;
+
     const NO_NEIGHBOR: usize = usize::MAX;
     const TILE_TO_NEIGHBORS: [[usize; 8]; 25] = precompute_tile_to_neighbors();
     const fn precompute_tile_to_neighbors() -> [[usize; 8]; 25] {
@@ -262,22 +266,22 @@ pub mod gs5x5_static_evaluation {
 
     // Positions are 0-24 if placed, or 25 if not placed
     // Undefined behavior if the state is already won, it is expected that the caller checks this before calling this function
-    pub fn get_static_evaluation(tile_heights: [u8; 25], player_a_worker_tiles: [u8; 2], player_b_worker_tiles: [u8; 2], player_a_turn: bool) -> f32 {
-        if player_b_worker_tiles[0] == 25 {
+    pub fn get_child_evaluation(state: SantoriniState5x5) -> f32 {
+        if state.worker_b_tiles[0] == 25 {
             // TODO: Consider unplaced workers better
             // Unplaced workers
             return 0.0;
         }
 
-        debug_assert!(tile_heights[player_a_worker_tiles[0] as usize] != 3 && tile_heights[player_a_worker_tiles[1] as usize] != 3);
-        debug_assert!(tile_heights[player_b_worker_tiles[0] as usize] != 3 && tile_heights[player_b_worker_tiles[1] as usize] != 3);
+        debug_assert!(state.tile_heights[state.worker_a_tiles[0] as usize] != 3 && state.tile_heights[state.worker_a_tiles[1] as usize] != 3);
+        debug_assert!(state.tile_heights[state.worker_b_tiles[0] as usize] != 3 && state.tile_heights[state.worker_b_tiles[1] as usize] != 3);
 
         let mut valuation = 0.0;
 
 
-        for a_worker_tile in &player_a_worker_tiles {
+        for a_worker_tile in &state.worker_a_tiles {
             let worker_tile = *a_worker_tile as usize;
-            let worker_height = tile_heights[worker_tile] as usize;
+            let worker_height = state.tile_heights[worker_tile] as usize;
 
             valuation += TILE_CENTER_VALUE[worker_tile];
 
@@ -285,8 +289,8 @@ pub mod gs5x5_static_evaluation {
                 if *neighbor_tile == NO_NEIGHBOR {
                     break;
                 }
-                let neighbor_tile_height = tile_heights[*neighbor_tile] as usize;
-                if player_a_turn {
+                let neighbor_tile_height = state.tile_heights[*neighbor_tile] as usize;
+                if state.player_a_turn {
                     valuation += ACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION[worker_height][neighbor_tile_height];
                 } else {
                     valuation += INACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION[worker_height][neighbor_tile_height];
@@ -294,9 +298,9 @@ pub mod gs5x5_static_evaluation {
             }
         }
 
-        for b_worker_tile in &player_b_worker_tiles {
+        for b_worker_tile in &state.worker_b_tiles {
             let worker_tile = *b_worker_tile as usize;
-            let worker_height = tile_heights[worker_tile] as usize;
+            let worker_height = state.tile_heights[worker_tile] as usize;
 
             valuation -= TILE_CENTER_VALUE[worker_tile];
 
@@ -304,8 +308,8 @@ pub mod gs5x5_static_evaluation {
                 if *neighbor_tile == NO_NEIGHBOR {
                     break;
                 }
-                let neighbor_tile_height = tile_heights[*neighbor_tile] as usize;
-                if player_a_turn {
+                let neighbor_tile_height = state.tile_heights[*neighbor_tile] as usize;
+                if state.player_a_turn {
                     valuation -= INACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION[worker_height][neighbor_tile_height];
                 } else {
                     valuation -= ACTIVE_WORKER_HEIGHT_TO_NEIGHBOR_HEIGHT_TO_VALUATION[worker_height][neighbor_tile_height];

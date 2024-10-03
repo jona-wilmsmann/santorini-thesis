@@ -1,7 +1,7 @@
 use std::env;
 use serde::{Deserialize, Serialize};
 use plotters::prelude::full_palette::{DEEPPURPLE, GREEN_900};
-use crate::game_state::{GameState, MinimaxReady};
+use crate::game_state::{GameState, SantoriniEval};
 use crate::minimax::cached_minimax;
 use crate::stats::benchmark_minimax_sorted::BenchmarkMinimaxSorted;
 use crate::stats::StatGenerator;
@@ -9,7 +9,7 @@ use crate::stats::utils::draw_minimax_benchmark::{AverageMinimaxMeasurement, dra
 use crate::stats::utils::gather_minimax_benchmark::gather_minimax_benchmark;
 
 #[derive(Clone)]
-pub struct BenchmarkMinimaxCached<GS: GameState + MinimaxReady + 'static, const SORTED_MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize> {
+pub struct BenchmarkMinimaxCached<GS: GameState + SantoriniEval + 'static, const SORTED_MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize> {
     game_name: String,
     game_state_name: String,
     game_state_short_name: String,
@@ -29,7 +29,7 @@ pub struct BenchmarkMinimaxCachedData {
 
 
 impl<
-    GS: GameState + MinimaxReady + 'static,
+    GS: GameState + SantoriniEval + 'static,
     const SORTED_MIN_DEPTH_TO_SORT: usize,
     const MIN_DEPTH_TO_SORT: usize,
     const MIN_DEPTH_TO_CACHE: usize
@@ -59,7 +59,7 @@ impl<
 
 
 impl<
-    GS: GameState + MinimaxReady + 'static,
+    GS: GameState + SantoriniEval + 'static,
     const SORTED_MIN_DEPTH_TO_SORT: usize,
     const MIN_DEPTH_TO_SORT: usize,
     const MIN_DEPTH_TO_CACHE: usize

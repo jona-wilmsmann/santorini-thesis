@@ -1,6 +1,20 @@
 use std::fmt::{Debug, Display};
 use crate::generic_game_state::GenericGameState;
 
+pub struct SantoriniState4x4 {
+    pub position_heights: [u8; 16],
+    pub worker_a_position: u8,
+    pub worker_b_position: u8,
+    pub player_a_turn: bool,
+}
+
+pub struct SantoriniState5x5 {
+    pub tile_heights: [u8; 25],
+    pub worker_a_tiles: [u8; 2],
+    pub worker_b_tiles: [u8; 2],
+    pub player_a_turn: bool,
+}
+
 pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash::Hash {
     type RawValue: Debug;
     type GenericGameState: GenericGameState;
@@ -16,9 +30,9 @@ pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash:
     fn get_children_states_reuse_vec(&self, possible_next_states: &mut Vec<Self>);
 }
 
-pub trait MinimaxReady : GameState {
-    fn get_static_evaluation(&self) -> f32;
-    // The child evaluation only needs to evaluate the workers of the inactive player, as the active player will be the same for all states with the same parent state
+pub trait SantoriniEval: GameState {
+    type SantoriniState;
+    fn get_santorini_state(&self) -> Self::SantoriniState;
     fn get_child_evaluation(&self) -> f32;
 }
 

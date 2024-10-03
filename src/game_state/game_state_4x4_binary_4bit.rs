@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
-use crate::game_state::{GameState, MinimaxReady, SimplifiedState};
+use crate::game_state::{GameState, SantoriniEval, SantoriniState4x4, SimplifiedState};
 
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
@@ -96,7 +96,7 @@ impl GameState4x4Binary4Bit {
             (player_a_position, player_b_position)
         } else {
             (player_b_position, player_a_position)
-        }
+        };
     }
 
     fn has_internal_player_a_won(&self) -> bool {
@@ -341,10 +341,12 @@ impl GameState for GameState4x4Binary4Bit {
     }
 }
 
-impl MinimaxReady for GameState4x4Binary4Bit {
-    fn get_static_evaluation(&self) -> f32 {
-        let mut player_a_position = 16;
-        let mut player_b_position = 16;
+impl SantoriniEval for GameState4x4Binary4Bit {
+    type SantoriniState = SantoriniState4x4;
+
+    fn get_santorini_state(&self) -> Self::SantoriniState {
+        let mut worker_a_position = 16;
+        let mut worker_b_position = 16;
         let mut position_heights = [0; 16];
 
         let mut block_count = 0;
@@ -360,25 +362,32 @@ impl MinimaxReady for GameState4x4Binary4Bit {
                 position_heights[position] = height;
                 block_count += height;
                 if info & 0x8 != 0 {
-                    player_a_position = position as u8;
+                    worker_a_position = position as u8;
                 } else if info & 0x4 != 0 {
-                    player_b_position = position as u8;
+                    worker_b_position = position as u8;
                 }
             }
             state >>= 4;
         }
 
-        // TODO Handle turn if workers not placed
-
-        return if block_count % 2 == 0 {
-            gs4x4_static_evaluation::get_static_evaluation(position_heights, player_a_position, player_b_position, true)
+        let player_a_turn = if worker_a_position == 16 {
+            true
+        } else if worker_b_position == 16 {
+            false
         } else {
-            gs4x4_static_evaluation::get_static_evaluation(position_heights, player_b_position, player_a_position, false)
+            block_count % 2 == 0
+        };
+
+        return SantoriniState4x4 {
+            position_heights,
+            worker_a_position,
+            worker_b_position,
+            player_a_turn,
         };
     }
 
     fn get_child_evaluation(&self) -> f32 {
-        return self.get_static_evaluation();
+        return gs4x4_static_evaluation::get_child_evaluation(self.get_santorini_state())
     }
 }
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use once_cell::sync::Lazy;
-use crate::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, MinimaxReady};
+use crate::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, SantoriniEval, SantoriniState4x4};
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
 use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
@@ -287,17 +287,25 @@ impl GameState for GameState4x4Binary3Bit {
     }
 }
 
-impl MinimaxReady for GameState4x4Binary3Bit {
-    fn get_static_evaluation(&self) -> f32 {
-        let player_a_position = self.get_player_a_position() as u8;
-        let player_b_position = self.get_player_b_position() as u8;
-        let position_heights = self.get_position_heights();
+impl SantoriniEval for GameState4x4Binary3Bit {
+    type SantoriniState = SantoriniState4x4;
 
-        return gs4x4_static_evaluation::get_static_evaluation(position_heights, player_a_position, player_b_position, self.is_player_a_turn());
+    fn get_santorini_state(&self) -> Self::SantoriniState {
+        let worker_a_position = self.get_player_a_position() as u8;
+        let worker_b_position = self.get_player_b_position() as u8;
+        let position_heights = self.get_position_heights();
+        let player_a_turn = self.is_player_a_turn();
+
+        return SantoriniState4x4 {
+            position_heights,
+            worker_a_position,
+            worker_b_position,
+            player_a_turn,
+        };
     }
 
     fn get_child_evaluation(&self) -> f32 {
-        return self.get_static_evaluation();
+        return gs4x4_static_evaluation::get_child_evaluation(self.get_santorini_state());
     }
 }
 
@@ -717,41 +725,41 @@ impl GameState4x4Binary3Bit {
         return tile_height_combinations;
     }
 
-fn get_possible_state_count_for_remaining(mut remaining_tiles: u64, remaining_counts: Vec<u64>) -> u64 {
-    debug_assert!(remaining_tiles >= remaining_counts.iter().sum());
+    fn get_possible_state_count_for_remaining(mut remaining_tiles: u64, remaining_counts: Vec<u64>) -> u64 {
+        debug_assert!(remaining_tiles >= remaining_counts.iter().sum());
 
-    let mut possible_state_count = 1;
+        let mut possible_state_count = 1;
 
-    for remaining_count in remaining_counts {
-        possible_state_count *= get_binomial_coefficient(remaining_tiles, remaining_count);
-        remaining_tiles -= remaining_count;
-    }
-
-    return possible_state_count;
-}
-
-fn find_matching_combination(block_count: usize, continuous_id: u64) -> &'static TileHeightCombination {
-    let tile_height_combinations = &Self::TILE_HEIGHT_COMBINATIONS[block_count];
-
-    let mut low = 0;
-    let mut high = Self::MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT[block_count];
-
-    while low < high {
-        let mid = low + (high - low) / 2;
-        let mid_combination = &tile_height_combinations[mid];
-        if mid_combination.previous_summed_state_offset <= continuous_id {
-            low = mid + 1;
-        } else {
-            high = mid;
+        for remaining_count in remaining_counts {
+            possible_state_count *= get_binomial_coefficient(remaining_tiles, remaining_count);
+            remaining_tiles -= remaining_count;
         }
+
+        return possible_state_count;
     }
 
-    return if low == 0 {
-        &tile_height_combinations[0]
-    } else {
-        &tile_height_combinations[low - 1]
-    };
-}
+    fn find_matching_combination(block_count: usize, continuous_id: u64) -> &'static TileHeightCombination {
+        let tile_height_combinations = &Self::TILE_HEIGHT_COMBINATIONS[block_count];
+
+        let mut low = 0;
+        let mut high = Self::MAX_TILE_HEIGHT_COMBINATIONS_FOR_BLOCK_COUNT[block_count];
+
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let mid_combination = &tile_height_combinations[mid];
+            if mid_combination.previous_summed_state_offset <= continuous_id {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+
+        return if low == 0 {
+            &tile_height_combinations[0]
+        } else {
+            &tile_height_combinations[low - 1]
+        };
+    }
 }
 
 impl ContinuousBlockId for GameState4x4Binary3Bit {
@@ -782,7 +790,7 @@ impl ContinuousBlockId for GameState4x4Binary3Bit {
                 -2 => 1,
                 -1 => 3,
                 _ => 0,
-            }
+            };
         }
 
         let block_count = block_count as usize;
@@ -897,13 +905,13 @@ impl ContinuousBlockId for GameState4x4Binary3Bit {
                         0 => Self(1 << 61 | 16 << 48 | 16 << 53),
                         _ => panic!("Invalid continuous_id"),
                     }
-                },
+                }
                 -1 => {
                     let simplified_variant = POSSIBLE_SIMPLIFIED_STATE_VARIANTS[continuous_id as usize];
                     return Self((simplified_variant.player_a_position as u64) << 48 | 16 << 53);
-                },
+                }
                 _ => panic!("Invalid block count"),
-            }
+            };
         }
 
         let block_count = block_count as usize;

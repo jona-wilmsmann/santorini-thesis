@@ -2,7 +2,7 @@ use std::env;
 use serde::{Deserialize, Serialize};
 use plotters::prelude::*;
 use plotters::prelude::full_palette::GREEN_900;
-use crate::game_state::{GameState, MinimaxReady};
+use crate::game_state::{GameState, SantoriniEval};
 use crate::minimax::alpha_beta_sorted_minimax;
 use crate::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
 use crate::stats::StatGenerator;
@@ -10,7 +10,7 @@ use crate::stats::utils::draw_minimax_benchmark::{AverageMinimaxMeasurement, dra
 use crate::stats::utils::gather_minimax_benchmark::gather_minimax_benchmark;
 
 #[derive(Clone)]
-pub struct BenchmarkMinimaxSorted<GS: GameState + MinimaxReady + 'static, const MIN_DEPTH_TO_SORT: usize> {
+pub struct BenchmarkMinimaxSorted<GS: GameState + SantoriniEval + 'static, const MIN_DEPTH_TO_SORT: usize> {
     game_name: String,
     game_state_name: String,
     game_state_short_name: String,
@@ -29,7 +29,7 @@ pub struct BenchmarkMinimaxSortedData {
 
 
 
-impl<GS: GameState + MinimaxReady + 'static, const MIN_DEPTH_TO_SORT: usize> BenchmarkMinimaxSorted<GS, MIN_DEPTH_TO_SORT> {
+impl<GS: GameState + SantoriniEval + 'static, const MIN_DEPTH_TO_SORT: usize> BenchmarkMinimaxSorted<GS, MIN_DEPTH_TO_SORT> {
     pub fn new (
         game_name: String,
         game_state_name: String,
@@ -54,7 +54,7 @@ impl<GS: GameState + MinimaxReady + 'static, const MIN_DEPTH_TO_SORT: usize> Ben
 }
 
 
-impl<GS: GameState + MinimaxReady + 'static, const MIN_DEPTH_TO_SORT: usize> StatGenerator for BenchmarkMinimaxSorted<GS, MIN_DEPTH_TO_SORT> {
+impl<GS: GameState + SantoriniEval + 'static, const MIN_DEPTH_TO_SORT: usize> StatGenerator for BenchmarkMinimaxSorted<GS, MIN_DEPTH_TO_SORT> {
     type DataType = BenchmarkMinimaxSortedData;
 
     fn get_stat_name(&self) -> String {
