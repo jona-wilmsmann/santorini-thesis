@@ -387,7 +387,15 @@ impl SantoriniEval for GameState4x4Binary4Bit {
     }
 
     fn get_child_evaluation(&self) -> f32 {
-        return gs4x4_static_evaluation::get_child_evaluation(self.get_santorini_state())
+        let state = self.get_santorini_state();
+
+        if state.worker_a_position != 16 && state.position_heights[state.worker_a_position as usize] == 3 {
+            return f32::INFINITY;
+        } else if state.worker_b_position != 16 && state.position_heights[state.worker_b_position as usize] == 3 {
+            return f32::NEG_INFINITY;
+        }
+
+        return gs4x4_static_evaluation::get_child_evaluation(state);
     }
 }
 

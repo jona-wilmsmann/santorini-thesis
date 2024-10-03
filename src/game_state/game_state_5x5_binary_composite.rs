@@ -384,6 +384,12 @@ impl SantoriniEval for GameState5x5BinaryComposite {
     }
 
     fn get_child_evaluation(&self) -> f32 {
+        if self.has_player_a_won() {
+            return f32::INFINITY;
+        } else if self.has_player_b_won() {
+            return f32::NEG_INFINITY;
+        }
+
         return gs5x5_static_evaluation::get_child_evaluation(self.get_santorini_state());
     }
 }

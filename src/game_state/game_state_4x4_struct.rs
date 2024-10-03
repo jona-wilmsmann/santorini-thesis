@@ -243,6 +243,12 @@ impl SantoriniEval for GameState4x4Struct {
     }
 
     fn get_child_evaluation(&self) -> f32 {
+        if self.player_a_worker != Self::WORKER_NOT_PLACED && self.tile_heights[self.player_a_worker as usize] == 3 {
+            return f32::INFINITY;
+        } else if self.player_b_worker != Self::WORKER_NOT_PLACED && self.tile_heights[self.player_b_worker as usize] == 3 {
+            return f32::NEG_INFINITY;
+        }
+
         return gs4x4_static_evaluation::get_child_evaluation(self.get_santorini_state());
     }
 }
