@@ -1,5 +1,6 @@
 pub mod minimax_cache;
 
+use fnv::FnvHashMap;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use crate::game_state::{GameState, SantoriniEval};
@@ -56,7 +57,7 @@ fn simple_minimax_internal<GS: GameState>(
 
     game_state.get_children_states_reuse_vec(reused_children_vec);
 
-    let mut reusable_vec_for_children = Vec::with_capacity(32);
+    let mut reusable_vec_for_children = Vec::with_capacity(64);
     if maximizing_player {
         let mut max_evaluation = f32::NEG_INFINITY;
         for child in reused_children_vec {
@@ -80,7 +81,7 @@ fn simple_minimax_internal<GS: GameState>(
 
 pub fn simple_minimax<GS: GameState>(game_state: &GS, depth: usize) -> (f32, usize) {
     let mut evaluated_states = 0;
-    let mut reused_children_vec = Vec::with_capacity(32);
+    let mut reused_children_vec = Vec::with_capacity(64);
     let result = simple_minimax_internal(game_state, game_state.is_player_a_turn(), depth, &mut reused_children_vec, &mut evaluated_states);
     return (result, evaluated_states);
 }
@@ -109,7 +110,7 @@ fn alpha_beta_minimax_internal<GS: GameState>(
 
     game_state.get_children_states_reuse_vec(reused_children_vec);
 
-    let mut reusable_vec_for_children = Vec::with_capacity(32);
+    let mut reusable_vec_for_children = Vec::with_capacity(64);
     if maximizing_player {
         let mut max_evaluation = f32::NEG_INFINITY;
         for child in reused_children_vec {
@@ -145,7 +146,7 @@ fn alpha_beta_minimax_internal<GS: GameState>(
 
 pub fn alpha_beta_minimax<GS: GameState>(game_state: &GS, depth: usize) -> (f32, usize) {
     let mut evaluated_states = 0;
-    let mut reused_children_vec = Vec::with_capacity(32);
+    let mut reused_children_vec = Vec::with_capacity(64);
     let result = alpha_beta_minimax_internal(game_state, game_state.is_player_a_turn(), depth, f32::NEG_INFINITY, f32::INFINITY, &mut reused_children_vec, &mut evaluated_states);
     return (result, evaluated_states);
 }
@@ -179,7 +180,7 @@ fn alpha_beta_sorted_minimax_internal<GS: GameState + SantoriniEval, const MIN_D
         }
     }
 
-    let mut reusable_vec_for_children = Vec::with_capacity(32);
+    let mut reusable_vec_for_children = Vec::with_capacity(64);
     if maximizing_player {
         let mut max_evaluation = f32::NEG_INFINITY;
         for child in reused_children_vec {
@@ -215,7 +216,7 @@ fn alpha_beta_sorted_minimax_internal<GS: GameState + SantoriniEval, const MIN_D
 
 pub fn alpha_beta_sorted_minimax<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SORT: usize>(game_state: &GS, depth: usize) -> (f32, usize) {
     let mut evaluated_states = 0;
-    let mut reused_children_vec = Vec::with_capacity(32);
+    let mut reused_children_vec = Vec::with_capacity(64);
     let result = alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(
         game_state,
         game_state.is_player_a_turn(),
@@ -250,7 +251,7 @@ fn internal_cached_minimax<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SOR
         return 0.0;
     }
 
-    let mut reusable_vec_for_children = Vec::with_capacity(32);
+    let mut reusable_vec_for_children = Vec::with_capacity(64);
 
     if maximizing_player {
         let original_alpha = alpha;
@@ -355,7 +356,7 @@ pub fn cached_minimax<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SORT: us
         f32::NEG_INFINITY,
         f32::INFINITY,
         &mut cache,
-        &mut Vec::with_capacity(32),
+        &mut Vec::with_capacity(64),
         &mut evaluated_states,
     );
 
@@ -371,7 +372,7 @@ async fn internal_parallel_minimax<GS: GameState + SantoriniEval + 'static, cons
     mut beta: f32,
 ) -> f32 {
     if depth < MIN_DEPTH_TO_PARALLELIZE {
-        return alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(&game_state, maximizing_player, depth, alpha, beta, &mut Vec::with_capacity(32), &mut 0);
+        return alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(&game_state, maximizing_player, depth, alpha, beta, &mut Vec::with_capacity(64), &mut 0);
     }
 
     if game_state.has_player_a_won() {
@@ -414,7 +415,7 @@ async fn internal_parallel_minimax<GS: GameState + SantoriniEval + 'static, cons
 
         for child in children_states.into_iter().skip(1) {
             tasks.push(tokio::spawn(async move {
-                return alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(&child, false, depth - 1, alpha, beta, &mut Vec::with_capacity(32), &mut 0);
+                return alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(&child, false, depth - 1, alpha, beta, &mut Vec::with_capacity(64), &mut 0);
             }));
         }
 
@@ -451,7 +452,7 @@ async fn internal_parallel_minimax<GS: GameState + SantoriniEval + 'static, cons
 
         for child in children_states.into_iter().skip(1) {
             tasks.push(tokio::spawn(async move {
-                return alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(&child, true, depth - 1, alpha, beta, &mut Vec::with_capacity(32), &mut 0);
+                return alpha_beta_sorted_minimax_internal::<GS, MIN_DEPTH_TO_SORT>(&child, true, depth - 1, alpha, beta, &mut Vec::with_capacity(64), &mut 0);
             }));
         }
 
@@ -509,7 +510,7 @@ fn internal_cached_minimax_no_count<GS: GameState + SantoriniEval, const MIN_DEP
         return 0.0;
     }
 
-    let mut reusable_vec_for_children = Vec::with_capacity(32);
+    let mut reusable_vec_for_children = Vec::with_capacity(64);
 
     if maximizing_player {
         let original_alpha = alpha;
@@ -610,7 +611,7 @@ pub fn minimax<GS: GameState + SantoriniEval>(game_state: &GS, depth: usize, alp
         alpha,
         beta,
         cache,
-        &mut Vec::with_capacity(32),
+        &mut Vec::with_capacity(64),
     );
 }
 
@@ -635,7 +636,7 @@ fn internal_cached_minimax_custom_heuristic<GS: GameState + SantoriniEval>(
         return heuristic_function(game_state);
     }
 
-    let mut reusable_vec_for_children = Vec::with_capacity(32);
+    let mut reusable_vec_for_children = Vec::with_capacity(64);
 
     if maximizing_player {
         let original_alpha = alpha;
@@ -741,7 +742,58 @@ pub fn minimax_custom_heuristic<GS: GameState + SantoriniEval>(
         f32::NEG_INFINITY,
         f32::INFINITY,
         cache,
-        &mut Vec::with_capacity(32),
+        &mut Vec::with_capacity(64),
         heuristic_function,
     );
+}
+
+
+fn infinite_depth_minimax_internal<GS: GameState + SantoriniEval>(
+    game_state: GS,
+    player_a_turn: bool,
+    reused_children_vec: &mut Vec<GS>,
+    solved_cache: &mut FnvHashMap<GS, bool>,
+) -> bool {
+    if game_state.has_player_a_won() {
+        return true;
+    } else if game_state.has_player_b_won() {
+        return false;
+    }
+
+    if let Some(&solved) = solved_cache.get(&game_state) {
+        return solved;
+    }
+
+    game_state.get_children_states_reuse_vec(reused_children_vec);
+    if !reused_children_vec.is_empty() {
+        order_children_states(reused_children_vec, player_a_turn);
+    }
+
+    let mut reusable_vec_for_children = Vec::with_capacity(64);
+
+    if player_a_turn {
+        for child in reused_children_vec.drain(..) {
+            if infinite_depth_minimax_internal(child, false, &mut reusable_vec_for_children, solved_cache) {
+                solved_cache.insert(game_state, true);
+                return true;
+            }
+        }
+        solved_cache.insert(game_state, false);
+        return false;
+    } else {
+        for child in reused_children_vec.drain(..) {
+            if !infinite_depth_minimax_internal(child, true, &mut reusable_vec_for_children, solved_cache) {
+                solved_cache.insert(game_state, false);
+                return false;
+            }
+        }
+        solved_cache.insert(game_state, true);
+        return true;
+    }
+}
+
+
+pub fn infinite_depth_minimax<GS: GameState + SantoriniEval>(game_state: GS, solved_cache: &mut FnvHashMap<GS, bool>) -> bool {
+    let mut reused_children_vec = Vec::with_capacity(64);
+    return infinite_depth_minimax_internal(game_state, game_state.is_player_a_turn(), &mut reused_children_vec, solved_cache);
 }

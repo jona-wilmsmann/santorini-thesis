@@ -83,3 +83,4 @@ pub mod benchmark_minimax_sorted;
 pub mod benchmark_minimax_cached;
 pub mod minimax_solve_stats;
 pub mod presolve_analysis;
+pub mod benchmark_minimax_infinite;

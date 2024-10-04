@@ -10,12 +10,14 @@ use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
 use santorini_minimax::game_state::{GameState, SantoriniEval};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::generic_game_state::GenericGameState;
-use santorini_minimax::minimax::{alpha_beta_sorted_minimax};
+use santorini_minimax::minimax::{alpha_beta_sorted_minimax, cached_minimax, infinite_depth_minimax, minimax};
 use santorini_minimax::play_game::{play_game, simulate_random_games};
 use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
 use santorini_minimax::stats::benchmark_minimax_cached::BenchmarkMinimaxCached;
+use santorini_minimax::stats::benchmark_minimax_infinite::BenchmarkMinimaxInfinite;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
 use santorini_minimax::stats::benchmark_minimax_sorted::BenchmarkMinimaxSorted;
+use santorini_minimax::stats::branching_factor_by_block_count::BranchingFactorByBlockCount;
 use santorini_minimax::stats::game_states_by_block_count::GameStatesByBlockCount;
 use santorini_minimax::stats::minimax_solve_stats::MinimaxSolveStats;
 use santorini_minimax::stats::presolve_analysis::PresolveAnalysis;
@@ -197,6 +199,7 @@ fn main() {
     let available_threads = std::thread::available_parallelism().expect("Could not get number of threads").get();
     // For benchmarking, it is better to leave some threads for other tasks so that tasks are less likely to be preempted
     let tokio_threads = if available_threads > 4 { available_threads - 4 } else { available_threads };
+    //let tokio_threads = 1; // TODO Workaround, remove again
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(tokio_threads)
@@ -210,6 +213,19 @@ async fn tokio_main() {
     type GS5x5 = GameState5x5BinaryComposite;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
     type GS4x4 = GameState4x4Binary3Bit;
+
+
+    let benchmark_minimax_infinite = BenchmarkMinimaxInfinite::<GS5x5>::new(
+        "5x5 Binary Composite".to_string(),
+        "5x5_binary_composite".to_string(),
+        1000,
+        45..=92,
+    );
+
+    benchmark_minimax_infinite.gather_and_store_data().await.unwrap();
+    //benchmark_minimax_infinite.generate_graph_from_most_recent_data().unwrap();
+
+    return;
 
     let boreham_greedy_strategy = HeuristicMinimaxStrategy::<GS5x5>::new(0, boreham_greedy_heuristic);
 
