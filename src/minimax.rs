@@ -20,6 +20,21 @@ fn order_children_states<GS: GameState + SantoriniEval>(children_states: &mut Ve
 }
 
 
+fn order_children_states_with_function<GS: GameState + SantoriniEval>(
+    children_states: &mut Vec<GS>,
+    maximizing: bool,
+    evaluation_function: fn(&GS) -> f32,
+) {
+    let mut children_evaluations: Vec<(f32, &mut GS)> = children_states.into_iter().map(|state| (evaluation_function(state), state)).collect();
+    if maximizing {
+        children_evaluations.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+    } else {
+        children_evaluations.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    }
+    *children_states = children_evaluations.iter().map(|(_, state)| **state).collect();
+}
+
+
 fn simple_minimax_internal<GS: GameState>(
     game_state: &GS,
     maximizing_player: bool,
@@ -281,7 +296,6 @@ fn internal_cached_minimax<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SOR
             cache.insert_valuation_bounds(depth, *game_state, Bounds { value: max_evaluation, alpha: original_alpha, beta });
         }
         return max_evaluation;
-
     } else {
         let original_beta = beta;
         let mut min_evaluation = f32::INFINITY;
@@ -476,7 +490,6 @@ pub async fn parallel_minimax<
 }
 
 
-
 fn internal_cached_minimax_no_count<GS: GameState + SantoriniEval, const MIN_DEPTH_TO_SORT: usize, const MIN_DEPTH_TO_CACHE: usize>(
     game_state: &GS,
     maximizing_player: bool,
@@ -598,5 +611,137 @@ pub fn minimax<GS: GameState + SantoriniEval>(game_state: &GS, depth: usize, alp
         beta,
         cache,
         &mut Vec::with_capacity(32),
+    );
+}
+
+
+fn internal_cached_minimax_custom_heuristic<GS: GameState + SantoriniEval>(
+    game_state: &GS,
+    maximizing_player: bool,
+    depth: usize,
+    mut alpha: f32,
+    mut beta: f32,
+    cache: &mut MinimaxCache<GS, 100>,
+    reused_children_vec: &mut Vec<GS>,
+    heuristic_function: fn(&GS) -> f32,
+) -> f32 {
+    if game_state.has_player_a_won() {
+        return f32::INFINITY;
+    } else if game_state.has_player_b_won() {
+        return f32::NEG_INFINITY;
+    }
+
+    if depth == 0 {
+        return heuristic_function(game_state);
+    }
+
+    let mut reusable_vec_for_children = Vec::with_capacity(32);
+
+    if maximizing_player {
+        let original_alpha = alpha;
+        let mut max_evaluation = f32::NEG_INFINITY;
+
+        if depth >= 3 {
+            if let Some(cached_value) = cache.get_valuation_bounds(depth, game_state) {
+                if cached_value.alpha <= alpha && cached_value.beta >= beta {
+                    return cached_value.value;
+                }
+
+                if cached_value.beta <= beta && cached_value.value > alpha {
+                    if cached_value.value >= beta {
+                        return cached_value.value;
+                    }
+                    alpha = cached_value.value;
+                    max_evaluation = alpha;
+                }
+            }
+        }
+
+        game_state.get_children_states_reuse_vec(reused_children_vec);
+        if !reused_children_vec.is_empty() {
+            if depth >= 3 {
+                order_children_states_with_function(reused_children_vec, maximizing_player, heuristic_function);
+            }
+        }
+
+        for child in reused_children_vec {
+            let evaluation = internal_cached_minimax_custom_heuristic::<GS>(child, false, depth - 1, alpha, beta, cache, &mut reusable_vec_for_children, heuristic_function);
+            if evaluation > max_evaluation {
+                max_evaluation = evaluation;
+                if max_evaluation >= beta {
+                    break;
+                }
+                if max_evaluation > alpha {
+                    alpha = max_evaluation;
+                }
+            }
+        }
+
+        if depth >= 3 {
+            cache.insert_valuation_bounds(depth, *game_state, Bounds { value: max_evaluation, alpha: original_alpha, beta });
+        }
+        return max_evaluation;
+    } else {
+        let original_beta = beta;
+        let mut min_evaluation = f32::INFINITY;
+
+        if depth >= 3 {
+            if let Some(cached_value) = cache.get_valuation_bounds(depth, game_state) {
+                if cached_value.alpha <= alpha && cached_value.beta >= beta {
+                    return cached_value.value;
+                }
+
+                if cached_value.alpha >= alpha && cached_value.value < beta {
+                    if cached_value.value <= alpha {
+                        return cached_value.value;
+                    }
+                    beta = cached_value.value;
+                    min_evaluation = beta;
+                }
+            }
+        }
+
+        game_state.get_children_states_reuse_vec(reused_children_vec);
+        if !reused_children_vec.is_empty() {
+            if depth >= 3 {
+                order_children_states_with_function(reused_children_vec, maximizing_player, heuristic_function);
+            }
+        }
+
+        for child in reused_children_vec {
+            let evaluation = internal_cached_minimax_custom_heuristic::<GS>(child, true, depth - 1, alpha, beta, cache, &mut reusable_vec_for_children, heuristic_function);
+            if evaluation < min_evaluation {
+                min_evaluation = evaluation;
+                if min_evaluation <= alpha {
+                    break;
+                }
+                if min_evaluation < beta {
+                    beta = min_evaluation;
+                }
+            }
+        }
+
+        if depth >= 3 {
+            cache.insert_valuation_bounds(depth, *game_state, Bounds { value: min_evaluation, alpha, beta: original_beta });
+        }
+        return min_evaluation;
+    }
+}
+
+pub fn minimax_custom_heuristic<GS: GameState + SantoriniEval>(
+    game_state: &GS,
+    depth: usize,
+    cache: &mut MinimaxCache<GS, 100>,
+    heuristic_function: fn(&GS) -> f32,
+) -> f32 {
+    return internal_cached_minimax_custom_heuristic::<GS>(
+        game_state,
+        game_state.is_player_a_turn(),
+        depth,
+        f32::NEG_INFINITY,
+        f32::INFINITY,
+        cache,
+        &mut Vec::with_capacity(32),
+        heuristic_function,
     );
 }

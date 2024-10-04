@@ -1,47 +1,56 @@
-use crate::game_state::GameState;
-use crate::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
-use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
+use crate::game_state::{GameState, SantoriniEval};
 use crate::minimax::minimax;
 use crate::minimax::minimax_cache::MinimaxCache;
 use crate::strategy::Strategy;
 
-pub struct MinimaxStrategy4x4 {
+#[derive(Copy, Clone)]
+pub struct MinimaxStrategy<GS: GameState + SantoriniEval> {
     max_depth: usize,
-    minimax_cache: MinimaxCache<GameState4x4Binary3Bit, 100>
+    _marker: std::marker::PhantomData<GS>,
 }
 
-impl MinimaxStrategy4x4 {
-    pub fn new(max_depth: usize) -> MinimaxStrategy4x4 {
+impl<GS: GameState + SantoriniEval> MinimaxStrategy<GS> {
+    pub fn new(max_depth: usize) -> MinimaxStrategy<GS> {
         assert!(max_depth < 100);
-        MinimaxStrategy4x4 {
+        return MinimaxStrategy {
             max_depth,
-            minimax_cache: MinimaxCache::<GameState4x4Binary3Bit, 100>::new()
-        }
+            _marker: std::marker::PhantomData,
+        };
     }
 }
 
-impl Strategy for MinimaxStrategy4x4 {
-    type GenericGameState = GenericSantoriniGameState<4, 4, 1>;
+impl<GS: GameState + SantoriniEval> Strategy for MinimaxStrategy<GS> {
+    type GameState = GS;
 
-    fn choose_move(&mut self, _current_state: &Self::GenericGameState, possible_next_states: &Vec<Self::GenericGameState>) -> usize {
+    fn choose_move(&self, is_player_a: bool, _current_state: &GS, possible_next_states: &Vec<GS>) -> usize {
+        let mut cache = MinimaxCache::new();
 
         let mut best_move_index = 0;
-        let mut best_value = f32::NEG_INFINITY;
 
-        for (i, generic_state) in possible_next_states.iter().enumerate() {
-            let game_state = GameState4x4Binary3Bit::from_generic_game_state(generic_state);
-            let value = minimax(&game_state, self.max_depth, f32::MIN, f32::MAX, &mut self.minimax_cache);
+        if is_player_a {
+            let mut best_value = f32::NEG_INFINITY;
 
-            if value > best_value {
-                best_value = value;
-                best_move_index = i;
+            for (i, game_state) in possible_next_states.iter().enumerate() {
+                let value = minimax(game_state, self.max_depth, f32::MIN, f32::MAX, &mut cache);
+
+                if value > best_value {
+                    best_value = value;
+                    best_move_index = i;
+                }
+            }
+        } else {
+            let mut worst_value = f32::INFINITY;
+
+            for (i, game_state) in possible_next_states.iter().enumerate() {
+                let value = minimax(game_state, self.max_depth, f32::MIN, f32::MAX, &mut cache);
+
+                if value < worst_value {
+                    worst_value = value;
+                    best_move_index = i;
+                }
             }
         }
 
         return best_move_index;
-    }
-
-    fn clear_cache(&mut self) {
-        self.minimax_cache = MinimaxCache::<GameState4x4Binary3Bit, 100>::new();
     }
 }

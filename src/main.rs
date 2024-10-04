@@ -1,20 +1,17 @@
 // Necessary for precomputing values for static evaluation
 #![feature(const_fn_floating_point_arithmetic)]
 
-use std::env;
 use santorini_minimax::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 use santorini_minimax::stats::{StatGenerator};
 use anyhow::Result;
 use rand::SeedableRng;
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
 use santorini_minimax::game_state::game_state_5x5_binary_composite::GameState5x5BinaryComposite;
 use santorini_minimax::game_state::game_state_5x5_struct::GameState5x5Struct;
-use santorini_minimax::game_state::{ContinuousBlockId, ContinuousId, GameState, SantoriniEval, SimplifiedState};
+use santorini_minimax::game_state::{GameState, SantoriniEval};
 use santorini_minimax::game_state::game_state_4x4_binary_3bit::GameState4x4Binary3Bit;
 use santorini_minimax::generic_game_state::GenericGameState;
-use santorini_minimax::minimax::{alpha_beta_sorted_minimax, cached_minimax, parallel_minimax};
-use santorini_minimax::precompute_state_winner::{find_shortest_forced_win, presolve_state_winner};
+use santorini_minimax::minimax::{alpha_beta_sorted_minimax};
+use santorini_minimax::play_game::{play_game, simulate_random_games};
 use santorini_minimax::stats::benchmark_minimax_alpha_beta::BenchmarkMinimaxAlphaBeta;
 use santorini_minimax::stats::benchmark_minimax_cached::BenchmarkMinimaxCached;
 use santorini_minimax::stats::benchmark_minimax_simple::BenchmarkMinimaxSimple;
@@ -22,28 +19,12 @@ use santorini_minimax::stats::benchmark_minimax_sorted::BenchmarkMinimaxSorted;
 use santorini_minimax::stats::game_states_by_block_count::GameStatesByBlockCount;
 use santorini_minimax::stats::minimax_solve_stats::MinimaxSolveStats;
 use santorini_minimax::stats::presolve_analysis::PresolveAnalysis;
-use santorini_minimax::stats::utils::formatters::ns_formatter;
+use santorini_minimax::strategy::heuristic_minimax_strategy::HeuristicMinimaxStrategy;
+use santorini_minimax::strategy::console_input_strategy::ConsoleInputStrategy;
+use santorini_minimax::strategy::heuristics::boreham_greedy_heuristic::boreham_greedy_heuristic;
+use santorini_minimax::strategy::heuristics::boreham_heuristic::boreham_heuristic;
+use santorini_minimax::strategy::random_strategy::RandomStrategy;
 
-/*
-fn measure_minimax_and_log_moves<GS: GameState + MinimaxReady + SimplifiedState>(game_state: &GS, depth: usize) {
-    let mut minimax_cache = MinimaxCache::new();
-    let start = Instant::now();
-    let result = minimax_with_moves(game_state, depth, f32::NEG_INFINITY, f32::INFINITY, &mut minimax_cache);
-    let duration = start.elapsed();
-    for (i, state) in result.1.iter().enumerate() {
-        let corrected_state = if i % 2 == 0 {
-            state
-        } else {
-            &state.get_flipped_state()
-        };
-        let player = if i % 2 == 0 { "A" } else { "B" };
-        println!("State {} (Player {} to move):\n{}", i, player, corrected_state);
-    }
-
-    println!("Minimax value: {}, took: {:?}", readable_minmax_value(result.0), duration);
-    println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
-}
- */
 
 fn store_game_state_image<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize>
 (game_state: &GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER>, name: &str) -> Result<()> {
@@ -85,95 +66,10 @@ async fn average_branching_factor<GS: GameState + SantoriniEval + 'static>(numbe
     return Ok(average_branching_factor);
 }
 
-fn main() {
-    let available_threads = std::thread::available_parallelism().expect("Could not get number of threads").get();
-    // For benchmarking, it is better to leave some threads for other tasks so that tasks are less likely to be preempted
-    let tokio_threads = if available_threads > 4 { available_threads - 4 } else { available_threads };
-
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(tokio_threads)
-        .enable_all()
-        .build()
-        .unwrap();
-    runtime.block_on(tokio_main());
-}
-
-async fn tokio_main() {
+async fn handle_stats() {
     type GS5x5 = GameState5x5BinaryComposite;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
     type GS4x4 = GameState4x4Binary3Bit;
-
-    //find_shortest_forced_win().await.unwrap();
-
-    /*
-
-    let available_threads = std::thread::available_parallelism().expect("Could not get number of threads").get();
-    for block_count in (0..=60).rev() {
-        println!("Starting presolve for block {}...", block_count);
-        presolve_state_winner::<GS4x4, 1>(block_count, available_threads - 4).await.unwrap();
-    }
-
-    return;
-
-     */
-
-    /*
-    let mut rng = rand::rngs::StdRng::seed_from_u64(0);
-    let random_states: Vec<GS5x5> = (0..100)
-        .map(|_| GS5x5::from_generic_game_state(&GenericGameState::generate_random_state_with_blocks_rng(&mut rng, 20))).collect();
-
-    let mut total_normal_duration = std::time::Duration::new(0, 0);
-    let mut total_parallel_duration = std::time::Duration::new(0, 0);
-    for (i, state) in random_states.into_iter().enumerate() {
-        let normal_start = std::time::Instant::now();
-        let normal_result = alpha_beta_sorted_minimax::<GS5x5, 3>(&state, 9).0;
-        let normal_duration = normal_start.elapsed();
-        total_normal_duration += normal_duration;
-
-        let parallel_start = std::time::Instant::now();
-        let parallel_result = parallel_minimax::<GS5x5, 3, 9>(state, 9).await;
-        let parallel_duration = parallel_start.elapsed();
-        total_parallel_duration += parallel_duration;
-
-        if normal_result != parallel_result {
-            println!("Mismatch at state {}: normal: {}, parallel: {}", i, normal_result, parallel_result);
-        }
-        println!("{}s Normal\n{}s Parallel\n--------------------", normal_duration.as_secs_f64(), parallel_duration.as_secs_f64());
-    }
-
-
-    println!("TOTAL\n{}s Normal\n{}s Parallel\n--------------------", total_normal_duration.as_secs_f64(), total_parallel_duration.as_secs_f64());
-
-    return;
-
-     */
-
-    /*
-    let mut rng = rand::rngs::StdRng::seed_from_u64(0);
-    let random_states: Vec<GS5x5> = (0..100000)
-        .map(|_| GS5x5::from_generic_game_state(&GenericGameState::generate_random_state_with_blocks_rng(&mut rng, 20))).collect();
-
-    let mut tasks = Vec::new();
-
-    for (i, state) in random_states.iter().enumerate() {
-        for depth in 4..=8 {
-            let state_copy = state.clone();
-            tasks.push(tokio::spawn(async move {
-                let sorted_result = alpha_beta_sorted_minimax::<GS5x5, 3>(&state_copy, depth);
-                let cached_result = cached_minimax::<GS5x5, 3, 3>(&state_copy, depth);
-                if sorted_result.0 != cached_result.0 {
-                    println!("Mismatch at state {}, depth {}: sorted: {}, cached: {}", i, depth, sorted_result.0, cached_result.0);
-                }
-            }));
-        }
-    }
-    for task in tasks {
-        task.await.unwrap();
-    }
-    return;
-
-     */
-
 
     let benchmark_minimax_simple_5x5 = BenchmarkMinimaxSimple::<GS5x5>::new(
         "Santorini".to_string(),
@@ -294,217 +190,100 @@ async fn tokio_main() {
     let presolve_analysis = PresolveAnalysis::new();
     //presolve_analysis.gather_and_store_data().await.unwrap();
     //presolve_analysis.generate_graph_from_most_recent_data().unwrap();
+}
 
 
-    //let _ = average_branching_factor::<GS5x5>(1000, 20, 6).await;
+fn main() {
+    let available_threads = std::thread::available_parallelism().expect("Could not get number of threads").get();
+    // For benchmarking, it is better to leave some threads for other tasks so that tasks are less likely to be preempted
+    let tokio_threads = if available_threads > 4 { available_threads - 4 } else { available_threads };
 
-    /*
-    type GS5x5 = GameState5x5Struct;
-    type GS4x4 = GameState4x4Binary3Bit;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(tokio_threads)
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(tokio_main());
+}
+
+async fn tokio_main() {
+    type GS5x5 = GameState5x5BinaryComposite;
     type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
-
-    let branching_factor_stat = BranchingFactorByBlockCount::<GS4x4>::new("4x4".to_string(), " (4x4 Santorini)".to_string(), 60, 64, 1000000);
-
-    //branching_factor_stat.gather_and_store_data().unwrap();
-    branching_factor_stat.generate_graph_from_most_recent_data().unwrap();
-
-    let game_states_stat = GameStatesByBlockCount::new(16, 1, " (4x4 Santorini)".to_string());
-    let data = game_states_stat.gather_data().unwrap();
-    let sum: u128 = data.game_states_by_block_count.iter().sum();
-    println!("Sum: {}", sum);
-    //game_states_stat.gather_and_store_data().unwrap();
-    game_states_stat.generate_graph_from_most_recent_data().unwrap();
-
-     */
-    /*
     type GS4x4 = GameState4x4Binary3Bit;
 
-    let num_threads = std::thread::available_parallelism().map_or(1, |n| n.get());
-    let data_folder_path = "/mnt/data/santorini_winner_data_new";
-    let data_folder_path_draw = "/mnt/data/santorini_winner_data_draw";
-    //let data_folder_path = "winner_data";
+    let boreham_greedy_strategy = HeuristicMinimaxStrategy::<GS5x5>::new(0, boreham_greedy_heuristic);
 
-    for block_count in (0..=60).rev() {
-        println!("Starting draw presolve for block {}...", block_count);
-        presolve_state_winner::<GS4x4, 2>(block_count, num_threads - 4, data_folder_path_draw).await.unwrap();
-    }
+    let boreham_strategy = HeuristicMinimaxStrategy::<GS5x5>::new(2, boreham_heuristic);
 
-    for block_count in (0..=60).rev() {
-        println!("Starting presolve for block {}...", block_count);
-        presolve_state_winner::<GS4x4, 1>(block_count, num_threads - 4, data_folder_path).await.unwrap();
-    }
+    let random_strategy = RandomStrategy::<GS5x5>::new();
 
-     */
+    let child_heuristic_strategy = HeuristicMinimaxStrategy::<GS5x5>::new(2, |state| state.get_child_evaluation());
+    //let mut console_input_strategy = ConsoleInputStrategy::new();
+
+    let results = simulate_random_games(&random_strategy, &boreham_greedy_strategy, 100, 0).await;
+
+    println!("Strategy 1 wins: {}, Strategy 2 wins: {}", results.strategy_1_wins, results.strategy_2_wins);
+
+    //find_shortest_forced_win().await.unwrap();
 
     /*
-    type GS4x4 = GameState4x4Binary3Bit;
-    type GGS4x4 = <GameState4x4Binary3Bit as GameState>::GenericGameState;
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+    let random_states: Vec<GS5x5> = (0..100)
+        .map(|_| GS5x5::from_generic_game_state(&GenericGameState::generate_random_state_with_blocks_rng(&mut rng, 20))).collect();
 
-    let generic_game_state_4x4 = GGS4x4::new(
-        [0],
-        [15],
-        [
-            [0, 1, 2, 2],
-            [1, 1, 3, 0],
-            [0, 2, 4, 2],
-            [0, 1, 4, 0],
-        ],
-        true,
-    ).unwrap();
+    let mut total_normal_duration = std::time::Duration::new(0, 0);
+    let mut total_parallel_duration = std::time::Duration::new(0, 0);
+    for (i, state) in random_states.into_iter().enumerate() {
+        let normal_start = std::time::Instant::now();
+        let normal_result = alpha_beta_sorted_minimax::<GS5x5, 3>(&state, 9).0;
+        let normal_duration = normal_start.elapsed();
+        total_normal_duration += normal_duration;
 
-    generic_game_state_4x4.draw_image("test.svg").unwrap();
+        let parallel_start = std::time::Instant::now();
+        let parallel_result = parallel_minimax::<GS5x5, 3, 9>(state, 9).await;
+        let parallel_duration = parallel_start.elapsed();
+        total_parallel_duration += parallel_duration;
 
-    type GS5x5 = GameState5x5Struct;
-    type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
-
-    let generic_game_state_5x5 = GGS5x5::generate_random_state_with_blocks(15);
-
-    generic_game_state_5x5.draw_image("test2.svg").unwrap();
-
-     */
-
-    /*
-    type GS4x4 = GameState4x4Binary3Bit;
-    type GGS4x4 = <GameState4x4Binary3Bit as GameState>::GenericGameState;
-
-    let generic_game_state_4x4 = GGS4x4::new(
-        [0],
-        [15],
-        [
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-        ],
-        true,
-    ).unwrap();
-    let game_state_4x4 = GS4x4::from_generic_game_state(&generic_game_state_4x4);
-
-    type GS5x5 = GameState5x5Struct;
-    type GGS5x5 = <GameState5x5Struct as GameState>::GenericGameState;
-
-    let generic_game_state_5x5 = GGS5x5::new(
-        [0, 1],
-        [23, 24],
-        [
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-        ],
-        true,
-    ).unwrap();
-    let game_state_5x5 = GS5x5::from_generic_game_state(&generic_game_state_5x5);
-
-
-    let depth = 4;
-
-
-    let start = Instant::now();
-    let mut minimax_cache = MinimaxCache::new();
-    let value = minimax(&game_state_4x4, depth, f32::MIN, f32::MAX, &mut minimax_cache);
-
-    let duration = start.elapsed();
-
-    println!("4x4");
-    println!("Minimax value: {}, took: {:?}", readable_minmax_value(value), duration);
-    println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
-
-
-
-    let start = Instant::now();
-    let mut minimax_cache = MinimaxCache::new();
-    let value = minimax(&game_state_5x5, depth, f32::MIN, f32::MAX, &mut minimax_cache);
-
-    let duration = start.elapsed();
-
-    println!("5x5");
-    println!("Minimax value: {}, took: {:?}", readable_minmax_value(value), duration);
-    println!("Evaluated states: {}, pruned states: {}", minimax_cache.evaluated_states.to_formatted_string(&Locale::en), minimax_cache.pruned_states.to_formatted_string(&Locale::en));
-
-     */
-
-    /*
-    type GGS = GenericSantoriniGameState<5, 5, 2>;
-    type GS = GameState5x5Binary128bit;
-
-    let generic_game_state = GGS::new(
-        [0, GGS::WORKER_NOT_PLACED],
-        [23, GGS::WORKER_NOT_PLACED],
-        [
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0],
-        ],
-        true,
-    ).unwrap();
-
-    println!("{}", generic_game_state);
-
-    let game_state = GS::from_generic_game_state(&generic_game_state);
-
-    let children_states = game_state.get_children_states();
-
-    for (i, state) in children_states.iter().enumerate() {
-        println!("Child state {}:\n{}", i, state);
-    }
-
-     */
-
-    /*
-    type GS = GameState4x4Binary3Bit;
-
-    let mut console_input_strategy = ConsoleInputStrategy::<GenericSantoriniGameState<4, 4, 1>>::new();
-    let mut random_strategy = RandomStrategy::<GenericSantoriniGameState<4, 4, 1>>::new();
-
-    let generic_game_state = GenericSantoriniGameState::<4, 4, 1>::new([0], [10], [[0, 0, 0, 4], [0, 0, 0, 4], [0, 0, 0, 4], [4, 4, 4, 4]], true).unwrap();
-    let game_state = GS::from_generic_game_state(&generic_game_state);
-
-    let result = play_game(&mut console_input_strategy, &mut random_strategy, game_state);
-
-    if result {
-        println!("Player 1 wins!");
-    } else {
-        println!("Player 2 wins!");
-    }
-     */
-
-
-    /*
-    let mut states = Vec::new();
-    let block_num = 50;
-    println!("Checking count {}", GS::get_continuous_block_id_count(block_num));
-    for i in 0..GS::get_continuous_block_id_count(block_num) {
-        if i % 1000000 == 0 {
-            println!("Progress: {}", i);
+        if normal_result != parallel_result {
+            println!("Mismatch at state {}: normal: {}, parallel: {}", i, normal_result, parallel_result);
         }
-        let state = GS::from_continuous_block_id(block_num, i);
-        let continuous_block_id = state.get_continuous_block_id();
-        if continuous_block_id != i {
-            println!("Mismatch: {} != {}", continuous_block_id, i);
-            break;
-        }
-        states.push(state.raw_value());
+        println!("{}s Normal\n{}s Parallel\n--------------------", normal_duration.as_secs_f64(), parallel_duration.as_secs_f64());
     }
 
-    states.sort();
-    states.dedup();
 
-    println!("States: {}", states.len());
+    println!("TOTAL\n{}s Normal\n{}s Parallel\n--------------------", total_normal_duration.as_secs_f64(), total_parallel_duration.as_secs_f64());
+
     return;
 
+     */
 
-    //create_csv_report(100, 15..=50, 1..=10).await.unwrap();
+    /*
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+    let random_states: Vec<GS5x5> = (0..100000)
+        .map(|_| GS5x5::from_generic_game_state(&GenericGameState::generate_random_state_with_blocks_rng(&mut rng, 20))).collect();
 
+    let mut tasks = Vec::new();
 
-    //let generic_game_state = Generic4x4GameState::new(0, 10, [0,0,0,4,0,0,0,4,0,0,0,4,4,4,4,4]).unwrap();
-    let generic_game_state = Generic4x4GameState::new(5, 9, [1, 1, 1, 0, 0, 0, 1, 4, 4, 0, 1, 1, 0, 1, 2, 4]).unwrap();
-    let game_state = GS::from_generic_game_state(&generic_game_state);
+    for (i, state) in random_states.iter().enumerate() {
+        for depth in 4..=8 {
+            let state_copy = state.clone();
+            tasks.push(tokio::spawn(async move {
+                let sorted_result = alpha_beta_sorted_minimax::<GS5x5, 3>(&state_copy, depth);
+                let cached_result = cached_minimax::<GS5x5, 3, 3>(&state_copy, depth);
+                if sorted_result.0 != cached_result.0 {
+                    println!("Mismatch at state {}, depth {}: sorted: {}, cached: {}", i, depth, sorted_result.0, cached_result.0);
+                }
+            }));
+        }
+    }
+    for task in tasks {
+        task.await.unwrap();
+    }
+    return;
 
+     */
 
-    //measure_minimax_and_log_moves(&game_state, 10);
-    */
+    //handle_stats().await;
+
+    //let _ = average_branching_factor::<GS5x5>(1000, 20, 6).await;
 }

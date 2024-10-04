@@ -15,7 +15,7 @@ pub struct SantoriniState5x5 {
     pub player_a_turn: bool,
 }
 
-pub trait GameState: Display + Send + Copy + Clone + Eq + PartialEq + std::hash::Hash {
+pub trait GameState: Display + Send + Sync + Copy + Clone + Eq + PartialEq + std::hash::Hash {
     type RawValue: Debug;
     type GenericGameState: GenericGameState;
 

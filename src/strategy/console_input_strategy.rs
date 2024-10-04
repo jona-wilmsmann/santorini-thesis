@@ -1,12 +1,13 @@
-use crate::generic_game_state::GenericGameState;
+use crate::game_state::GameState;
 use crate::strategy::Strategy;
 
-pub struct ConsoleInputStrategy<GGS: GenericGameState> {
-    _marker: std::marker::PhantomData<GGS>,
+#[derive(Copy, Clone)]
+pub struct ConsoleInputStrategy<GS: GameState> {
+    _marker: std::marker::PhantomData<GS>,
 }
 
-impl<GGS: GenericGameState> ConsoleInputStrategy<GGS> {
-    pub fn new() -> ConsoleInputStrategy<GGS> {
+impl<GS: GameState> ConsoleInputStrategy<GS> {
+    pub fn new() -> ConsoleInputStrategy<GS> {
         ConsoleInputStrategy { _marker: Default::default() }
     }
 
@@ -31,10 +32,10 @@ impl<GGS: GenericGameState> ConsoleInputStrategy<GGS> {
     }
 }
 
-impl<GGS: GenericGameState> Strategy for ConsoleInputStrategy<GGS> {
-    type GenericGameState = GGS;
+impl<GS: GameState> Strategy for ConsoleInputStrategy<GS> {
+    type GameState = GS;
 
-    fn choose_move(&mut self, current_state: &GGS, possible_next_states: &Vec<GGS>) -> usize {
+    fn choose_move(&self, _is_player_a: bool, current_state: &GS, possible_next_states: &Vec<GS>) -> usize {
         println!("Current state:\n{}", current_state);
         println!("Possible next states:");
         for (i, state) in possible_next_states.iter().enumerate() {
@@ -42,6 +43,4 @@ impl<GGS: GenericGameState> Strategy for ConsoleInputStrategy<GGS> {
         }
         return Self::get_user_input(possible_next_states.len());
     }
-
-    fn clear_cache(&mut self) {}
 }
