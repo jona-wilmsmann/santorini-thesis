@@ -87,7 +87,6 @@ pub async fn simulate_random_games<
             } else {
                 play_game(&strategy_2, &strategy_1, initial_state)
             };
-            println!("Game {}, turns: {}, winner: {}", i, result.num_turns, if result.player_a_wins ^ !player_a_is_strategy_1 { "Strategy 1" } else { "Strategy 2" });
             return SimulationGameResult {
                 player_a_wins: result.player_a_wins,
                 num_turns: result.num_turns,

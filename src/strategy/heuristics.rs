@@ -41,3 +41,4 @@ const fn precompute_tile_to_neighbors() -> [[usize; 8]; 25] {
 
 pub mod boreham_heuristic;
 pub mod boreham_greedy_heuristic;
+pub mod dynamic_heuristic;

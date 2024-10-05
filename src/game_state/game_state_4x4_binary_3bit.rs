@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use crate::game_state::{ContinuousBlockId, ContinuousId, GameState, SimplifiedState, SantoriniEval, SantoriniState4x4};
 use crate::game_state::utils::precompute_position_to_tile_id::precompute_position_to_tile_id;
 use crate::game_state::utils::get_binomial_coefficient::get_binomial_coefficient;
-use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
+use crate::game_state::utils::child_evaluation::gs4x4_child_evaluation;
 use crate::game_state::utils::symmetric_simplified::gs4x4_symmetric_simplified;
 use crate::game_state::utils::symmetric_simplified::gs4x4_symmetric_simplified::POSSIBLE_SIMPLIFIED_STATE_VARIANTS;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
@@ -311,7 +311,7 @@ impl SantoriniEval for GameState4x4Binary3Bit {
             return f32::NEG_INFINITY;
         }
 
-        return gs4x4_static_evaluation::get_child_evaluation(self.get_santorini_state());
+        return gs4x4_child_evaluation::get_child_evaluation(self.get_santorini_state());
     }
 }
 

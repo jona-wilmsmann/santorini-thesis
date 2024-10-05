@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use anyhow::{bail, ensure, Result};
@@ -297,6 +298,93 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
 }
 
 
+fn count_configurations(
+    tile_index: usize,
+    remaining_blocks: usize,
+    max_heights: &[usize],
+    memo: &mut HashMap<(usize, usize), usize>,
+) -> usize {
+    if tile_index == max_heights.len() {
+        return if remaining_blocks == 0 { 1 } else { 0 };
+    }
+
+    if let Some(&cached) = memo.get(&(tile_index, remaining_blocks)) {
+        return cached;
+    }
+
+    let max_height = max_heights[tile_index];
+    let min_height = 0;
+    let max_possible = max_height.min(remaining_blocks);
+
+    let mut total_ways = 0;
+    for h in min_height..=max_possible {
+        total_ways += count_configurations(
+            tile_index + 1,
+            remaining_blocks - h,
+            max_heights,
+            memo,
+        );
+    }
+
+    memo.insert((tile_index, remaining_blocks), total_ways);
+    total_ways
+}
+
+
+fn sample_heights(
+    tile_index: usize,
+    remaining_blocks: usize,
+    max_heights: &[usize],
+    heights: &mut [usize],
+    rng: &mut impl rand::Rng,
+    memo: &mut HashMap<(usize, usize), usize>,
+) {
+    // Base case: if we've assigned all tiles
+    if tile_index == heights.len() {
+        debug_assert_eq!(remaining_blocks, 0);
+        return;
+    }
+
+    let max_height = max_heights[tile_index];
+    let min_height = 0;
+    let max_possible = max_height.min(remaining_blocks);
+
+    // Calculate the total number of ways to distribute the remaining blocks
+    let mut total_ways = 0;
+    let mut ways_per_height = Vec::with_capacity(max_possible - min_height + 1);
+
+    for h in min_height..=max_possible {
+        let ways = count_configurations(
+            tile_index + 1,
+            remaining_blocks - h,
+            max_heights,
+            memo,
+        );
+        total_ways += ways;
+        ways_per_height.push((h, ways));
+    }
+
+    // Choose a height for the current tile proportional to the number of ways
+    let mut choice = rng.gen_range(0..total_ways);
+    for (h, ways) in ways_per_height {
+        if choice < ways {
+            heights[tile_index] = h;
+            sample_heights(
+                tile_index + 1,
+                remaining_blocks - h,
+                max_heights,
+                heights,
+                rng,
+                memo,
+            );
+            return;
+        } else {
+            choice -= ways;
+        }
+    }
+}
+
+
 impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> GenericSantoriniGameState<ROWS, COLUMNS, WORKERS_PER_PLAYER> {
     fn get_random_worker_positions<RNG: rand::Rng>(rng: &mut RNG) -> ([u8; WORKERS_PER_PLAYER], [u8; WORKERS_PER_PLAYER]) {
         let mut player_a_workers = [0; WORKERS_PER_PLAYER];
@@ -355,23 +443,31 @@ impl<const ROWS: usize, const COLUMNS: usize, const WORKERS_PER_PLAYER: usize> G
 
         let (player_a_workers, player_b_workers) = GenericSantoriniGameState::<ROWS, COLUMNS, WORKERS_PER_PLAYER>::get_random_worker_positions(rng);
 
-        let mut tile_max_heights = [[4; COLUMNS]; ROWS];
-        for i in 0..WORKERS_PER_PLAYER {
-            tile_max_heights[player_a_workers[i] as usize / COLUMNS][player_a_workers[i] as usize % COLUMNS] = 2;
-            tile_max_heights[player_b_workers[i] as usize / COLUMNS][player_b_workers[i] as usize % COLUMNS] = 2;
+
+        // Prepare max_heights vector
+        let mut max_heights = Vec::with_capacity(ROWS * COLUMNS);
+        for tile_index in 0..ROWS * COLUMNS {
+            let is_worker_tile = player_a_workers.contains(&(tile_index as u8)) || player_b_workers.contains(&(tile_index as u8));
+            let max_height = if is_worker_tile { 2 } else { 4 };
+            max_heights.push(max_height);
         }
 
-        let mut available_tiles = (0..(ROWS * COLUMNS) as u8).collect::<Vec<u8>>();
+        let mut heights_flat = vec![0; ROWS * COLUMNS];
+        let mut memo = HashMap::new();
+        sample_heights(
+            0,
+            block_amount,
+            &max_heights,
+            &mut heights_flat,
+            rng,
+            &mut memo,
+        );
 
-        for _ in 0..block_amount {
-            let tile_index = rng.gen_range(0..available_tiles.len());
-            let tile_id = available_tiles[tile_index];
-            let tile_height = &mut tile_heights[tile_id as usize / COLUMNS][tile_id as usize % COLUMNS];
-            *tile_height += 1;
-            if *tile_height == tile_max_heights[tile_id as usize / COLUMNS][tile_id as usize % COLUMNS] {
-                available_tiles.swap_remove(tile_index);
-            }
+        // Convert heights_flat to tile_heights 2D array
+        for (i, &height) in heights_flat.iter().enumerate() {
+            tile_heights[i / COLUMNS][i % COLUMNS] = height as u8;
         }
+
 
         let player_a_turn = block_amount % 2 == 0;
 

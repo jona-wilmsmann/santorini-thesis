@@ -1,4 +1,4 @@
-pub mod gs4x4_static_evaluation {
+pub mod gs4x4_child_evaluation {
     /*
     12 10 9  8
     13 15 11 6
@@ -82,7 +82,7 @@ pub mod gs4x4_static_evaluation {
     }
 }
 
-pub mod gs5x5_static_evaluation {
+pub mod gs5x5_child_evaluation {
     use crate::game_state::SantoriniState5x5;
     use crate::strategy::heuristics;
 

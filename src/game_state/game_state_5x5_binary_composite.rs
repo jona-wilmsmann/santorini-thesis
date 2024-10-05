@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::Formatter;
 use crate::game_state::{GameState, SantoriniEval, SantoriniState5x5};
-use crate::game_state::utils::static_evaluation::gs5x5_static_evaluation;
+use crate::game_state::utils::child_evaluation::gs5x5_child_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 
 /*
@@ -390,6 +390,6 @@ impl SantoriniEval for GameState5x5BinaryComposite {
             return f32::NEG_INFINITY;
         }
 
-        return gs5x5_static_evaluation::get_child_evaluation(self.get_santorini_state());
+        return gs5x5_child_evaluation::get_child_evaluation(self.get_santorini_state());
     }
 }

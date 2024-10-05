@@ -21,10 +21,10 @@ fn order_children_states<GS: GameState + SantoriniEval>(children_states: &mut Ve
 }
 
 
-fn order_children_states_with_function<GS: GameState + SantoriniEval>(
+fn order_children_states_with_function<GS: GameState + SantoriniEval, F: Fn(&GS) -> f32>(
     children_states: &mut Vec<GS>,
     maximizing: bool,
-    evaluation_function: fn(&GS) -> f32,
+    evaluation_function: &F,
 ) {
     let mut children_evaluations: Vec<(f32, &mut GS)> = children_states.into_iter().map(|state| (evaluation_function(state), state)).collect();
     if maximizing {
@@ -616,7 +616,7 @@ pub fn minimax<GS: GameState + SantoriniEval>(game_state: &GS, depth: usize, alp
 }
 
 
-fn internal_cached_minimax_custom_heuristic<GS: GameState + SantoriniEval>(
+fn internal_cached_minimax_custom_heuristic<GS: GameState + SantoriniEval, F: Fn(&GS) -> f32>(
     game_state: &GS,
     maximizing_player: bool,
     depth: usize,
@@ -624,7 +624,7 @@ fn internal_cached_minimax_custom_heuristic<GS: GameState + SantoriniEval>(
     mut beta: f32,
     cache: &mut MinimaxCache<GS, 100>,
     reused_children_vec: &mut Vec<GS>,
-    heuristic_function: fn(&GS) -> f32,
+    heuristic_function: &F,
 ) -> f32 {
     if game_state.has_player_a_won() {
         return f32::INFINITY;
@@ -666,7 +666,7 @@ fn internal_cached_minimax_custom_heuristic<GS: GameState + SantoriniEval>(
         }
 
         for child in reused_children_vec {
-            let evaluation = internal_cached_minimax_custom_heuristic::<GS>(child, false, depth - 1, alpha, beta, cache, &mut reusable_vec_for_children, heuristic_function);
+            let evaluation = internal_cached_minimax_custom_heuristic::<GS, F>(child, false, depth - 1, alpha, beta, cache, &mut reusable_vec_for_children, heuristic_function);
             if evaluation > max_evaluation {
                 max_evaluation = evaluation;
                 if max_evaluation >= beta {
@@ -710,7 +710,7 @@ fn internal_cached_minimax_custom_heuristic<GS: GameState + SantoriniEval>(
         }
 
         for child in reused_children_vec {
-            let evaluation = internal_cached_minimax_custom_heuristic::<GS>(child, true, depth - 1, alpha, beta, cache, &mut reusable_vec_for_children, heuristic_function);
+            let evaluation = internal_cached_minimax_custom_heuristic::<GS, F>(child, true, depth - 1, alpha, beta, cache, &mut reusable_vec_for_children, heuristic_function);
             if evaluation < min_evaluation {
                 min_evaluation = evaluation;
                 if min_evaluation <= alpha {
@@ -729,13 +729,13 @@ fn internal_cached_minimax_custom_heuristic<GS: GameState + SantoriniEval>(
     }
 }
 
-pub fn minimax_custom_heuristic<GS: GameState + SantoriniEval>(
+pub fn minimax_custom_heuristic<GS: GameState + SantoriniEval, F: Fn(&GS) -> f32>(
     game_state: &GS,
     depth: usize,
     cache: &mut MinimaxCache<GS, 100>,
-    heuristic_function: fn(&GS) -> f32,
+    heuristic_function: &F,
 ) -> f32 {
-    return internal_cached_minimax_custom_heuristic::<GS>(
+    return internal_cached_minimax_custom_heuristic::<GS, F>(
         game_state,
         game_state.is_player_a_turn(),
         depth,

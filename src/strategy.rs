@@ -11,3 +11,4 @@ pub mod random_strategy;
 pub mod minimax_strategy_4x4;
 pub mod console_input_strategy;
 pub mod heuristic_minimax_strategy;
+pub mod dynamic_minimax_strategy;

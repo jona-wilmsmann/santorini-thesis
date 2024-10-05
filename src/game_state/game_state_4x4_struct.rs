@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::Formatter;
 use crate::game_state::{GameState, SantoriniEval, SantoriniState4x4};
-use crate::game_state::utils::static_evaluation::gs4x4_static_evaluation;
+use crate::game_state::utils::child_evaluation::gs4x4_child_evaluation;
 use crate::generic_game_state::generic_santorini_game_state::GenericSantoriniGameState;
 
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
@@ -249,6 +249,6 @@ impl SantoriniEval for GameState4x4Struct {
             return f32::NEG_INFINITY;
         }
 
-        return gs4x4_static_evaluation::get_child_evaluation(self.get_santorini_state());
+        return gs4x4_child_evaluation::get_child_evaluation(self.get_santorini_state());
     }
 }
