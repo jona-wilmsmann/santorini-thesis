@@ -109,7 +109,7 @@ impl StatGenerator for PresolveAnalysis {
         chart_log
             .configure_mesh()
             .disable_x_mesh()
-            .y_desc("% Game States")
+            .y_desc("Proportion of Game States")
             .x_desc("Block Count")
             .axis_desc_style(("sans-serif", 20).into_font())
             .label_style(("sans-serif", 15).into_font())

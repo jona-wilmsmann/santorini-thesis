@@ -29,6 +29,11 @@ impl<GS: GameState + SantoriniEval<SantoriniState = SantoriniState5x5>> Strategy
     fn choose_move(&self, is_player_a: bool, _current_state: &GS, possible_next_states: &Vec<GS>) -> usize {
         let mut cache = MinimaxCache::new();
         let dynamic_heuristic_function = |state: &GS| {
+            if state.has_player_a_won() {
+                return f32::INFINITY;
+            } else if state.has_player_b_won() {
+                return f32::NEG_INFINITY;
+            }
             dynamic_heuristic(state, &self.params)
         };
 

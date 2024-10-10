@@ -23,7 +23,7 @@ pub struct BenchmarkMinimaxInfinite<GS: GameState + SantoriniEval> {
     _phantom: std::marker::PhantomData<GS>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone)]
 pub struct InfiniteMinimaxMeasurement {
     pub block_count: usize,
     pub execution_time: Duration,
@@ -31,7 +31,7 @@ pub struct InfiniteMinimaxMeasurement {
     pub player_a_wins: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone)]
 pub struct AverageInfiniteMinimaxMeasurement {
     pub block_count: usize,
     pub average_execution_time: Duration,
@@ -39,7 +39,7 @@ pub struct AverageInfiniteMinimaxMeasurement {
     pub player_a_win_rate: f64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BenchmarkMinimaxInfiniteData {
     pub cpu_name: String,
     pub raw_measurements: Vec<InfiniteMinimaxMeasurement>,
@@ -143,7 +143,7 @@ impl <GS: GameState + SantoriniEval + 'static> StatGenerator for BenchmarkMinima
         let root = SVGBackend::new(&graph_path, (width, height)).into_drawing_area();
         root.fill(&WHITE)?;
 
-        let graph_upper_bound = 1e12 as usize;
+        let graph_upper_bound = 1e9 as usize;
         let log_duration_range = (0..graph_upper_bound).log_scale();
 
         // Line chart showing computation time, bar chart showing evaluated states

@@ -50,7 +50,6 @@ pub fn draw_minimax_benchmark(graph_path: String, graph_name: String, encoding_n
 
     // Line chart showing computation time, bar chart showing evaluated states
     let mut chart = ChartBuilder::on(&root)
-        .caption(graph_name, ("sans-serif", 30).into_font())
         .margin(10)
         .set_label_area_size(LabelAreaPosition::Left, 70)
         .set_label_area_size(LabelAreaPosition::Right, 70)

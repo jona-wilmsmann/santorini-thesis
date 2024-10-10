@@ -6,14 +6,13 @@ use crate::stats::StatGenerator;
 pub struct GameStatesByBlockCount {
     tiles: usize,
     workers_per_player: usize,
-    graph_suffix: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GameStatesByBlockCountData {
     pub tiles: usize,
     pub workers_per_player: usize,
-    pub game_states_by_block_count: Vec<u128>,
+    pub game_states_by_block_count: Vec<f64>,
 }
 
 #[derive(Debug)]
@@ -26,11 +25,10 @@ struct BlockConfiguration {
 }
 
 impl GameStatesByBlockCount {
-    pub fn new(tiles: usize, workers_per_player: usize, graph_suffix: String) -> Self {
+    pub fn new(tiles: usize, workers_per_player: usize) -> Self {
         return GameStatesByBlockCount {
             tiles,
             workers_per_player,
-            graph_suffix,
         };
     }
 
@@ -66,7 +64,7 @@ impl StatGenerator for GameStatesByBlockCount {
     }
 
     async fn gather_data(&self) -> anyhow::Result<Self::DataType> {
-        let mut game_states_by_block_count = vec![0u128; self.tiles * 4 + 1];
+        let mut game_states_by_block_count = vec![0.0; self.tiles * 4 + 1];
 
         let block_configurations_by_block_count = self.get_block_configurations();
 
@@ -108,7 +106,7 @@ impl StatGenerator for GameStatesByBlockCount {
                 total_options += (worker_position_options as u128 + terminal_worker_position_options as u128) * height_options as u128;
             }
 
-            game_states_by_block_count[block_count] = total_options;
+            game_states_by_block_count[block_count] = total_options as f64;
         }
 
         return Ok(GameStatesByBlockCountData {
@@ -119,7 +117,7 @@ impl StatGenerator for GameStatesByBlockCount {
     }
 
     fn generate_graph(&self, data: Self::DataType, data_time: String, output_folder_path: &str) -> anyhow::Result<()> {
-        let max_game_states = *data.game_states_by_block_count.iter().max().unwrap();
+        let max_game_states = *data.game_states_by_block_count.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
 
         // Log scale
 
@@ -128,11 +126,8 @@ impl StatGenerator for GameStatesByBlockCount {
 
         root_log.fill(&WHITE)?;
 
-        let caption_log = format!("Game states by block count (Logarithmic){}", self.graph_suffix);
-
         let mut chart_log = ChartBuilder::on(&root_log)
-            .caption(caption_log, ("sans-serif", 50).into_font())
-            .margin(5)
+            .margin(10)
             .x_label_area_size(40)
             .y_label_area_size(60)
             .build_cartesian_2d((0..data.game_states_by_block_count.len() - 1).into_segmented(), (1e0..max_game_states as f64).log_scale())?;
@@ -165,11 +160,9 @@ impl StatGenerator for GameStatesByBlockCount {
 
         root_lin.fill(&WHITE)?;
 
-        let caption_lin = format!("Game states by block count (Linear){}", self.graph_suffix);
 
         let mut chart_lin = ChartBuilder::on(&root_lin)
-            .caption(caption_lin, ("sans-serif", 50).into_font())
-            .margin(5)
+            .margin(10)
             .x_label_area_size(40)
             .y_label_area_size(60)
             .build_cartesian_2d((0..data.game_states_by_block_count.len() - 1).into_segmented(), 0f64..max_game_states as f64)?;

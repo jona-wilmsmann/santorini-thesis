@@ -87,6 +87,7 @@ pub async fn simulate_random_games<
             } else {
                 play_game(&strategy_2, &strategy_1, initial_state)
             };
+            println!("Game {} finished", i);
             return SimulationGameResult {
                 player_a_wins: result.player_a_wins,
                 num_turns: result.num_turns,
